@@ -1,0 +1,49 @@
+# =============================================================================
+# M-flow Docker Build Ignore Rules
+# Excludes non-essential files from Docker build context for faster builds
+# =============================================================================
+
+# --- Development & CI ---
+.git/
+.github/
+.vscode/
+.idea/
+.venv/
+.dlt/
+.mypy_cache/
+__pycache__/
+*.pyc
+
+# --- Documentation & non-runtime assets ---
+docs/
+assets/
+notebooks/
+evals/
+licenses/
+logs/
+*.md
+!README.md
+
+# --- Test suites ---
+tests/
+m_flow/tests/
+
+# --- Frontend (built separately) ---
+m_flow-frontend/
+
+# --- Build artifacts ---
+dist/
+build/
+*.egg-info/
+bin/
+
+# --- OS / editor junk ---
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+
+# --- Environment secrets (never bake into image) ---
+.env
+.env.*
+!.env.template

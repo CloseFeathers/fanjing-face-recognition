@@ -1,0 +1,32 @@
+1）MediaPipe / ARKit blendshape 用于说话检测：我查到的事实
+MediaPipe Face Landmarker 官方确实会输出 52 个 blendshape 系数；官方代码里嘴部/下巴相关的名字包括 jawOpen、mouthClose、mouthFunnel、mouthPucker、mouthStretchLeft/Right、mouthUpperUpLeft/Right、mouthLowerDownLeft/Right 等。
+我查到的**最接近“blendshape 与说话行为”**的公开研究，不是直接做 speaking / not_speaking 分类，而是：
+2022 的一篇数据采集/分析论文，用 ARKit / Live Link Face 记录 blendshape，文中明确展示了 JawOpen 时间曲线会在语音有声段之前就开始上升；他们把“面部运动起点”定义为超过基线 2 个标准差 的第一帧。文中没有报告一个 speaking / not_speaking 分类精度。
+2026 的一篇临床方向论文，用 ARKit 52 个 blendshape 做口部/下颌运动分析；结果是每个口运动任务会对应 5–13 个显著参数，并且作者写到已有研究“确认 blendshape 能准确追踪 speech production 中 lip movement 的幅度”。这篇也不是 speaking / not_speaking 分类论文。
+我这次查到的公开资料里，没有找到一个已经发表并公开代码/权重、专门用 MediaPipe 或 ARKit blendshape 序列做 speaking / not_speaking 检测并报告标准精度的现成方案。我找到的公开 blendshape 项目主要是 speech-driven facial animation / lip-sync，例如 Audio2Face-3D、TalkingHead、SAiD 这类。
+结论上，确有证据表明 blendshape 能稳定描述口部运动，但我这次没有查到一个“MediaPipe/ARKit blendshape → 直接 speaking detection”的成熟公开 benchmark、现成代码和已验证精度。
+2）PINTO0309 / VSDLM：它到底能不能直接拿来做说话检测
+这个仓库的定位是 “Visual-only speech detection driven by lip movements”，但仓库里给出的实际模型输出是 prob_open，也就是嘴巴张开概率；导出的 ONNX 图同样暴露 images 输入和 prob_open 输出。
+仓库 README 给了 6 个 ONNX 变体，大小和 README 报告的 F1 / CPU latency 为：
+P 112KB / F1 0.9502 / 0.18ms，
+N 176KB / 0.9586 / 0.31ms，
+S 494KB / 0.9696 / 0.50ms，
+C 875KB / 0.9777 / 0.60ms，
+M 1.7MB / 0.9801 / 0.70ms，
+L 6.4MB / 0.9891 / 0.91ms。这些指标是仓库 README 直接列出来的。
+输入不是整张脸，也不是整段视频 clip。 仓库训练默认 --image_size 30x48；dataset pipeline 里使用 dataset/03_batch_mouth_labeler.py 和 DEIMv2 wholebody 检测器来生成 mouth crop，README 里还给了 crop_size 48、mouth crop 的尺寸统计。
+训练标签不是 “speaking / not_speaking”，而是 closed / open。README 明确写了：只保留 class_id == 1 (closed) 和 class_id == 2 (open)，label 0 (unknown) 会被丢弃，然后重新映射成二分类。
+仓库支持 ONNX 导出，README 给了 exportonnx 命令，也给了 webcam_onnx 推理入口。
+仓库没有提供一个“用它做 speaking / not_speaking 的公开精度”，也没有在 README 里给出“和 landmark-based speaking detection 的对比”。README 公开报告的是 mouth open / closed 的 F1 和 latency。
+仓库提供的官方演示链路用的是 DEIMv2 检测器，不是 MediaPipe；我没有在仓库 README 里看到官方给出的 MediaPipe 集成示例。
+3）有没有一个模型能同时做“遮挡检测 + 说话检测”
+我这次查到的开源统一前端里，FaceXFormer 能做的是：face parsing、landmarks、head pose、attributes、age/gender/race、facial expression、face recognition、face visibility；我没有查到它带 speaking / not_speaking 头。
+我查到的开源说话检测/ASD 模型里：
+Light-ASD 是轻量级 active speaker detection 模型；
+TalkNet-ASD 是端到端说话人检测 demo；
+FabuLight-ASD 是在 Light-ASD 基础上再加 body pose 的 ASD 模型。
+这些仓库/论文都在做 “是不是在说话”，不是显式输出嘴部/面部 occlusion label。
+FabuLight-ASD 的论文/项目里确实把 Face Occlusion (FO) 当成一个困难场景类别来评估，也就是说它考虑了“遮挡条件下的说话检测鲁棒性”；但它仍然是 ASD 模型，不是一个同时输出 occlusion 和 speaking 两个标签的多任务 mouth model。
+基于这次检索结果，我没有查到一个公开开源、明确支持“一次推理同时输出嘴部/面部遮挡状态 + speaking/not_speaking” 的现成模型。我查到的是两条分开的公开路线：
+FaceXFormer → visibility/parsing/landmarks；
+Light-ASD / TalkNet / FabuLight-ASD → speaking / active speaker。

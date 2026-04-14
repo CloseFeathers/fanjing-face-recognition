@@ -1,0 +1,24 @@
+# M-flow Git Attributes
+# Controls how Git handles specific file types in this repository.
+
+# Jupyter notebooks — exclude from GitHub language statistics
+notebooks/**/*.ipynb  linguist-vendored
+
+# Generated / vendored assets — exclude from stats & diffs
+*.lock               linguist-generated
+*.min.js             linguist-generated
+*.min.css            linguist-generated
+
+# Ensure consistent line endings for shell scripts
+*.sh   text eol=lf
+*.bash text eol=lf
+
+# Binary files — mark so Git doesn't try to diff them
+*.png  binary
+*.jpg  binary
+*.jpeg binary
+*.gif  binary
+*.ico  binary
+*.pkl  binary
+*.db   binary
+*.sqlite binary

@@ -1,0 +1,168 @@
+"""
+Track Sampler —— 为每条 track 维护高质量人脸样本缓存。
+
+策略: best-K
+  - 每条 track 最多保留 max_samples 张人脸
+  - 新样本如果质量 > 缓存中最差样本, 替换之
+  - 定期/按需可查询某 track 的最佳样本 (embedding 用)
+
+同时负责:
+  - 将对齐后的人脸图写入磁盘 output/faces/track_{id}/
+  - 将采样记录写入 JSONL 日志 output/track_faces.jsonl
+"""
+
+from __future__ import annotations
+
+import json
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Dict, List, Optional
+
+import cv2
+import numpy as np
+
+from .quality import QualityResult
+
+
+@dataclass
+class SampleInfo:
+    """一条采样记录。"""
+    track_id: int
+    frame_id: int
+    timestamp_ms: float
+    quality_score: float
+    save_path: str
+
+
+class TrackSampler:
+    """Per-track 人脸样本管理器。"""
+
+    def __init__(
+        self,
+        max_samples: int = 10,
+        output_dir: str = "output/faces",
+        log_path: str = "output/track_faces.jsonl",
+    ) -> None:
+        self.max_samples = max_samples
+        self.output_dir = Path(output_dir)
+        self._samples: Dict[int, List[SampleInfo]] = {}
+
+        # JSONL logger
+        self._log_path = Path(log_path)
+        self._log_fp = None
+
+        # 统计
+        self.total_evaluated = 0
+        self.total_passed = 0
+        self.total_saved = 0
+
+    # --- 生命周期 ---
+
+    def open(self) -> "TrackSampler":
+        self._log_path.parent.mkdir(parents=True, exist_ok=True)
+        self._log_fp = open(self._log_path, "w", encoding="utf-8")
+        return self
+
+    def close(self) -> None:
+        if self._log_fp:
+            self._log_fp.close()
+            self._log_fp = None
+
+    def __enter__(self):
+        return self.open()
+
+    def __exit__(self, *exc):
+        self.close()
+
+    # --- 核心 ---
+
+    def try_add(
+        self,
+        track_id: int,
+        frame_id: int,
+        timestamp_ms: float,
+        aligned_face: Optional[np.ndarray],
+        quality: QualityResult,
+    ) -> Optional[SampleInfo]:
+        """尝试为 track 添加一个样本。
+
+        Returns:
+            SampleInfo 如果成功采样, 否则 None
+        """
+        self.total_evaluated += 1
+
+        log_entry = {
+            "timestamp_ms": round(timestamp_ms, 3),
+            "frame_id": frame_id,
+            "track_id": track_id,
+            "aligned": aligned_face is not None,
+            **quality.to_dict(),
+            "save_path": None,
+        }
+
+        if not quality.passed or aligned_face is None:
+            self._write_log(log_entry)
+            return None
+
+        self.total_passed += 1
+
+        # 写入磁盘
+        track_dir = self.output_dir / f"track_{track_id}"
+        track_dir.mkdir(parents=True, exist_ok=True)
+        save_path = track_dir / f"frame_{frame_id}.jpg"
+        cv2.imwrite(str(save_path), aligned_face)
+
+        info = SampleInfo(
+            track_id=track_id,
+            frame_id=frame_id,
+            timestamp_ms=timestamp_ms,
+            quality_score=quality.score,
+            save_path=str(save_path),
+        )
+
+        # best-K 缓存
+        samples = self._samples.setdefault(track_id, [])
+        if len(samples) < self.max_samples:
+            samples.append(info)
+            self.total_saved += 1
+        else:
+            worst_idx = min(range(len(samples)),
+                            key=lambda i: samples[i].quality_score)
+            if quality.score > samples[worst_idx].quality_score:
+                old = samples[worst_idx]
+                old_path = Path(old.save_path)
+                if old_path.exists():
+                    old_path.unlink(missing_ok=True)
+                samples[worst_idx] = info
+            else:
+                # 新样本质量不够好, 删除刚保存的文件
+                save_path.unlink(missing_ok=True)
+
+        log_entry["save_path"] = str(save_path)
+        self._write_log(log_entry)
+        return info
+
+    # --- 查询 ---
+
+    def get_samples(self, track_id: int) -> List[SampleInfo]:
+        return self._samples.get(track_id, [])
+
+    def get_best(self, track_id: int) -> Optional[SampleInfo]:
+        samples = self._samples.get(track_id, [])
+        if not samples:
+            return None
+        return max(samples, key=lambda s: s.quality_score)
+
+    def get_all_tracks(self) -> Dict[int, List[SampleInfo]]:
+        return dict(self._samples)
+
+    def remove_track(self, track_id: int) -> None:
+        """清理已移除 track 的样本 (可选, 用于释放磁盘)。"""
+        self._samples.pop(track_id, None)
+
+    # --- 内部 ---
+
+    def _write_log(self, entry: dict) -> None:
+        if self._log_fp:
+            self._log_fp.write(json.dumps(entry, ensure_ascii=False) + "\n")
+            self._log_fp.flush()

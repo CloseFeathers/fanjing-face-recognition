@@ -1,0 +1,295 @@
+@import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@400;500&family=Inter:wght@400;500;600&family=Outfit:wght@400;500;600&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ============================================================================
+   M-Flow Design System - x.ai Style
+   Pure black, high contrast, extreme minimalism
+   ============================================================================ */
+
+:root {
+  /* Background - Pure Black */
+  --bg-base: #000000;
+  --bg-surface: #0a0a0a;
+  --bg-elevated: #141414;
+  --bg-hover: #1a1a1a;
+
+  /* Border - Very Light */
+  --border-subtle: rgba(255, 255, 255, 0.08);
+  --border-default: rgba(255, 255, 255, 0.12);
+
+  /* Text - High Contrast */
+  --text-primary: #ffffff;
+  --text-secondary: #a0a0a0;
+  --text-tertiary: #666666;
+  --text-muted: #404040;
+
+  /* Accent - Minimal White */
+  --accent: #ffffff;
+  --accent-dim: #a0a0a0;
+  --accent-subtle: rgba(255, 255, 255, 0.06);
+
+  /* Semantic Colors - Muted but recognizable */
+  --success: #4da378;
+  --error: #b05a5a;
+  --warning: #c4ab65;
+
+  /* Spacing */
+  --space-xs: 4px;
+  --space-sm: 8px;
+  --space-md: 16px;
+  --space-lg: 24px;
+  --space-xl: 32px;
+  --space-2xl: 48px;
+  --space-3xl: 64px;
+
+  /* Border Radius - Minimal */
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+
+  /* Transitions */
+  --duration: 150ms;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  font-size: 15px;
+}
+
+body {
+  background: var(--bg-base);
+  color: var(--text-primary);
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  letter-spacing: -0.01em;
+  line-height: 1.5;
+}
+
+/* Scrollbar - Minimal */
+::-webkit-scrollbar {
+  width: 4px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--text-muted);
+  border-radius: 2px;
+}
+
+::selection {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+/* ============================================================================
+   Typography
+   ============================================================================ */
+
+.text-display {
+  font-size: 2.5rem;
+  font-weight: 600;
+  letter-spacing: -0.03em;
+  line-height: 1.1;
+}
+
+.text-title {
+  font-size: 1.5rem;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+}
+
+.text-heading {
+  font-size: 1rem;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+}
+
+.text-body {
+  font-size: 0.9rem;
+  font-weight: 400;
+}
+
+.text-small {
+  font-size: 0.8rem;
+  font-weight: 400;
+  color: var(--text-secondary);
+}
+
+.text-tiny {
+  font-size: 0.7rem;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-tertiary);
+}
+
+/* ============================================================================
+   Animations
+   ============================================================================ */
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes progress-indeterminate {
+  0% { transform: translateX(-100%); width: 40%; }
+  50% { transform: translateX(100%); width: 40%; }
+  100% { transform: translateX(-100%); width: 40%; }
+}
+
+@keyframes progress-subtle {
+  0% { left: -30%; opacity: 0.5; }
+  100% { left: 100%; opacity: 0.7; }
+}
+
+@keyframes pulse-subtle {
+  0%, 100% { opacity: 0.4; transform: scale(0.8); }
+  50% { opacity: 1; transform: scale(1); }
+}
+
+.animate-in {
+  animation: fadeIn 200ms ease-out;
+}
+
+.animate-progress-indeterminate {
+  animation: progress-indeterminate 1.5s ease-in-out infinite;
+}
+
+.animate-progress-subtle {
+  animation: progress-subtle 2s ease-in-out infinite;
+}
+
+.animate-pulse-subtle {
+  animation: pulse-subtle 2s ease-in-out infinite;
+}
+
+/* ============================================================================
+   Components - x.ai Style
+   ============================================================================ */
+
+/* Buttons */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px 16px;
+  font-size: 0.85rem;
+  font-weight: 500;
+  border-radius: var(--radius-md);
+  transition: all var(--duration) ease;
+  cursor: pointer;
+}
+
+.btn-primary {
+  background: var(--text-primary);
+  color: var(--bg-base);
+}
+
+.btn-primary:hover {
+  opacity: 0.9;
+}
+
+.btn-secondary {
+  background: transparent;
+  color: var(--text-primary);
+  border: 1px solid var(--border-default);
+}
+
+.btn-secondary:hover {
+  background: var(--bg-hover);
+}
+
+.btn-ghost {
+  background: transparent;
+  color: var(--text-secondary);
+}
+
+.btn-ghost:hover {
+  color: var(--text-primary);
+}
+
+/* Inputs */
+.input-field {
+  width: 100%;
+  padding: 10px 12px;
+  font-size: 0.9rem;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  color: var(--text-primary);
+  transition: border-color var(--duration) ease;
+}
+
+.input-field::placeholder {
+  color: var(--text-muted);
+}
+
+.input-field:focus {
+  outline: none;
+  border-color: var(--border-default);
+}
+
+/* Cards */
+.card {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+}
+
+.card-hover {
+  transition: border-color var(--duration) ease;
+}
+
+.card-hover:hover {
+  border-color: var(--border-default);
+}
+
+/* Dividers */
+.divider {
+  height: 1px;
+  background: var(--border-subtle);
+}
+
+/* ============================================================================
+   Utilities
+   ============================================================================ */
+
+.line-clamp-1 {
+  display: -webkit-box;
+  -webkit-line-clamp: 1;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.line-clamp-2 {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* ============================================================================
+   Toast Override
+   ============================================================================ */
+
+[data-sonner-toast] {
+  --normal-bg: var(--bg-elevated) !important;
+  --normal-border: var(--border-subtle) !important;
+  --normal-text: var(--text-primary) !important;
+  font-family: 'Inter', sans-serif !important;
+}

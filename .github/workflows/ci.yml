@@ -1,0 +1,36 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install ruff
+      - run: ruff check src/ --output-format=github
+
+  import-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -r requirements.txt
+      - name: Verify core imports
+        run: |
+          python -c "from src.ingestion.frame import Frame; print('ingestion OK')"
+          python -c "from src.detectors.detection import Detection; print('detectors OK')"
+          python -c "from src.tracking.track import STrack; print('tracking OK')"
+          python -c "from src.alignment.aligner import FaceAligner; print('alignment OK')"
+          python -c "from src.embedding.embedder import ArcFaceEmbedder; print('embedding OK')"
+          python -c "from src.web.config import API_KEY, CreditGateConfig; print('web.config OK')"
+          echo "All imports passed"

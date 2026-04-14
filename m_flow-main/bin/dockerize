@@ -1,0 +1,35 @@
+#!/usr/bin/env bash
+# Build (and optionally push) the M-Flow container image.
+# Usage: stage=prod publish=true ./bin/dockerize
+set -euo pipefail
+
+readonly REGION="${region:-us-east-1}"
+readonly ACCOUNT="${account:-000000000000}"  # Replace with your AWS account ID
+readonly REGISTRY="${repo:-${ACCOUNT}.dkr.ecr.${REGION}.amazonaws.com}"
+readonly STAGE="${stage:-dev}"
+readonly TAG="${STAGE}-$(date +%Y%m%d)-$(git rev-parse --short HEAD)"
+readonly IMAGE="${image_name:-mflow-backend-${STAGE}}"
+readonly FULL="${REGISTRY}/${IMAGE}"
+readonly APP_DIR="${app_dir:-.}"
+readonly PUSH="${publish:-false}"
+
+echo "-- Building ${FULL}:${TAG} from ${APP_DIR}"
+
+pushd "${APP_DIR}" > /dev/null
+docker buildx build --platform linux/amd64 \
+    --build-arg STAGE="${STAGE}" \
+    -t "${FULL}:latest" \
+    -t "${FULL}:${TAG}" .
+echo "${TAG}" > /tmp/.DOCKER_IMAGE_VERSION
+popd > /dev/null
+
+echo "-- Image ready: ${FULL}:${TAG}"
+
+if [[ "${PUSH}" == "true" ]]; then
+    echo "-- Authenticating with ECR in ${REGION} …"
+    aws ecr get-login-password --region "${REGION}" \
+        | docker login --username AWS --password-stdin "${REGISTRY}"
+    docker push "${FULL}:latest"
+    docker push "${FULL}:${TAG}"
+    echo "-- Pushed to ${REGISTRY}"
+fi

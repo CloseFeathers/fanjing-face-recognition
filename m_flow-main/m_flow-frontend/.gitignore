@@ -1,0 +1,23 @@
+# M-flow Frontend — .gitignore
+# Dependencies & package manager
+node_modules/
+.pnpm-store/
+
+# Next.js build output
+.next/
+out/
+
+# Environment (local overrides)
+.env
+.env.local
+.env.*.local
+
+# IDE / OS
+.DS_Store
+*.swp
+.vscode/
+.idea/
+
+# Debug & logs
+npm-debug.log*
+pnpm-debug.log*

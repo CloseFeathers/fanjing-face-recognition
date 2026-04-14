@@ -1,0 +1,23 @@
+# M-flow Code Owners
+# See https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
+
+# Default owners for everything
+* @mflow-maintainer
+
+# Backend core
+/m_flow/ @mflow-maintainer
+
+# Frontend
+/m_flow-frontend/ @mflow-maintainer
+
+# MCP server
+/m_flow-mcp/ @mflow-maintainer
+
+# Documentation
+/docs/ @mflow-maintainer
+
+# CI/CD
+/.github/ @mflow-maintainer
+
+# Benchmarks
+/benchmarks/ @mflow-maintainer

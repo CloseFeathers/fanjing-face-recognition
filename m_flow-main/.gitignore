@@ -1,0 +1,114 @@
+# M-flow .gitignore
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg-info/
+*.egg
+dist/
+build/
+.eggs/
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+.venv-docs/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.cursor/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.nox/
+m_flow-frontend/coverage/
+
+# M-flow system data (runtime databases)
+.mflow/system/
+.mflow/cache/
+*.pkl
+
+# Runtime databases (except test fixtures)
+*.db
+!m_flow/tests/test_data/*.db
+*.sqlite
+!m_flow/tests/test_data/*.sqlite
+
+# Logs
+logs/
+*.log
+
+# Environment variables — never commit real keys
+.env
+.env.local
+.env.*.local
+.env.backup
+.env.chinese_embedding
+
+# Node / Frontend
+node_modules/
+.next/
+out/
+npm-debug.log*
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Distribution
+*.whl
+*.tar.gz
+
+# Type checking
+.mypy_cache/
+.pytype/
+
+# Ruff / Lint caches
+.ruff_cache/
+.infinity_cache/
+
+# Docker
+docker-compose.override.yml
+
+# Secrets
+*.pem
+*.key
+
+# Temporary / development-only scripts (root-level only)
+/ingest_*.py
+/test_e2e_*.py
+/test_prompt*.py
+
+# Backup directories
+backups/
+backup_*/
+
+# Data storage
+.data_storage/
+
+
+# Misc dev artifacts
+.anon_id
+.deepeval/
+*.bak
+# Runtime database files
+.mflow/
+m_flow/.mflow/
+*.wal
+*.db-shm
+*.db-wal
+*.pkl.wal

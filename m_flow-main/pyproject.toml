@@ -1,0 +1,316 @@
+# M-flow — Memory-augmented knowledge graph framework
+
+[project]
+name = "mflow-ai"
+version = "0.3.4"
+description = "M-flow builds semantic memory layers that help LLMs reason over your data with structured knowledge graphs."
+readme = "README.md"
+requires-python = ">=3.10"
+license = {text = "Apache-2.0"}
+authors = [
+    {name = "Junting Hua"},
+]
+maintainers = [
+    {name = "Junting Hua"},
+]
+
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: Apache Software License",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Software Development :: Libraries",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Typing :: Typed",
+]
+
+dependencies = [
+    # -- Web & API --
+    "fastapi>=0.115.0,<1.0.0",
+    "fastapi-users[sqlalchemy]>=14.0.1,<16.0.0",
+    "uvicorn>=0.32.0,<1.0.0",
+    "websockets>=14.0,<16.0.0",
+    "python-multipart>=0.0.18,<1.0.0",
+    "aiohttp>=3.10.0,<4.0.0",
+
+    # -- LLM providers --
+    "openai>=1.80.0",
+    "litellm>=1.75.0",
+    "instructor>=1.8.0,<2.0.0",
+    "tiktoken>=0.7.0,<1.0.0",
+
+    # -- Data & storage --
+    "sqlalchemy>=2.0.30,<3.0.0",
+    "aiosqlite>=0.19.0,<1.0.0",
+    "alembic>=1.13.0,<2",
+    "lancedb>=0.22.0,<1.0.0",
+    "kuzu>=0.11.0,<0.12",
+    "pylance>=0.20.0,<=0.36.0",
+    "diskcache>=5.6.0",
+
+    # -- Data models & validation --
+    "pydantic>=2.10.0,<2.13.0",
+    "pydantic-settings>=2.2.0,<3",
+    "numpy>=1.26.0,<3.0.0",
+
+    # -- Document processing --
+    "pypdf>=4.0.0,<7.0.0",
+    "filetype>=1.2.0,<2.0.0",
+    "jinja2>=3.1.0,<4",
+
+    # -- Resilience & observability --
+    "tenacity>=8.5.0",
+    "aiolimiter>=1.2.0",
+    "limits>=4.4.0,<5",
+    "structlog>=25.1.0,<26",
+
+    # -- Utilities --
+    "python-dotenv>=1.0.0,<2.0.0",
+    "typing_extensions>=4.12.0,<5.0.0",
+    "python-magic-bin<0.5 ; platform_system == 'Windows'",
+]
+
+# ---------------------------------------------------------------------------
+# Optional dependency groups
+# ---------------------------------------------------------------------------
+
+[project.optional-dependencies]
+
+# LLM providers
+anthropic = ["anthropic>=0.26"]
+gemini = ["google-genai>=1.0"]
+groq = ["groq>=0.8.0,<2.0.0"]
+huggingface = ["transformers>=4.45.0,<6"]
+mistral = ["mistral-common>=1.5.0,<2"]
+ollama = ["transformers>=4.45.0,<6"]
+cohere = ["cohere>=5.0"]
+deepseek = []   # OpenAI-compatible — routed via litellm
+qwen = []       # DashScope endpoint — routed via litellm
+doubao = []     # VolcEngine endpoint — routed via litellm
+
+# Graph databases
+neo4j = ["neo4j>=5.27.0,<6"]
+neptune = ["langchain_aws>=0.2.20"]
+graphiti = ["graphiti-core>=0.7.0,<0.29"]
+
+# Relational databases
+postgres = [
+    "psycopg2>=2.9.9,<3",
+    "pgvector>=0.3.4,<0.4",
+    "asyncpg>=0.29.0,<1.0.0",
+]
+postgres-binary = [
+    "psycopg2-binary>=2.9.9,<3.0.0",
+    "pgvector>=0.3.4,<0.4",
+    "asyncpg>=0.29.0,<1.0.0",
+]
+
+# Vector stores
+chromadb = [
+    "chromadb>=0.5,<1.6",
+    "pypika==0.48.9",
+]
+redis = ["redis>=5.0.0,<8.0.0"]
+pinecone = ["pinecone>=5.0"]
+milvus = ["pymilvus>=2.4"]
+
+# Local embeddings (default uses OpenAI API)
+embeddings = [
+    "fastembed<=0.8.0",
+    "onnxruntime<=1.22.1",
+]
+
+# Document parsers & web scraping
+docs = [
+    "lxml>=4.9.0,<5 ; python_version < '3.13'",
+    "lxml>=5,<7 ; python_version >= '3.13'",
+    "unstructured[csv, doc, docx, epub, md, odt, org, ppt, pptx, rst, rtf, tsv, xlsx, pdf]>=0.18.0,<19",
+]
+scraping = [
+    "tavily-python>=0.7.10",
+    "beautifulsoup4>=4.12.0",
+    "playwright>=1.9.0",
+    "lxml>=4.9.0,<5 ; python_version < '3.13'",
+    "lxml>=5,<7 ; python_version >= '3.13'",
+    "protego>=0.1",
+    "APScheduler>=3.10.0,<=3.11.0",
+]
+docling = ["docling>=2.50", "transformers>=4.50"]
+dlt = ["dlt[sqlalchemy]>=1.8.0,<2"]
+
+# Structured output
+baml = ["baml-py>=0.206.0,<0.221"]
+
+# Framework integrations
+langchain = [
+    "langsmith>=0.2.0,<1.0.0",
+    "langchain_text_splitters>=0.3.0,<2.0.0",
+]
+llama-index = ["llama-index-core>=0.12.0,<0.15"]
+
+# Coreference resolution (install from source: pip install -e ./coreference)
+# Not available via PyPI — use source install for coreference support
+coreference-full = [
+    "spacy>=3.7.0,<4.0.0",
+]
+
+# Code analysis
+codegraph = [
+    "fastembed<=0.8.0 ; python_version < '3.13'",
+    "transformers>=4.45.0,<6",
+    "tree-sitter>=0.23.0,<0.26",
+    "tree-sitter-python>=0.23.0,<0.26",
+]
+
+# Evaluation & analytics
+deepeval = ["deepeval>=3.0.0,<4"]
+evals = [
+    "plotly>=5.18.0,<7",
+    "gdown>=5.1.0,<7",
+    "pandas>=2.2.0,<3.0.0",
+    "matplotlib>=3.8.0,<4",
+    "scikit-learn>=1.5.0,<2",
+]
+
+# Observability
+monitoring = ["sentry-sdk[fastapi]>=2.8.0,<3", "langfuse>=2.30.0,<3"]
+posthog = ["posthog>=3.5.0,<8"]
+
+# Deployment & infrastructure
+deploy = ["gunicorn>=21.0.0,<26"]
+api = []
+distributed = ["modal>=1.0.0,<2.0.0"]
+aws = ["s3fs[boto3]>=2025.3.0,<2026"]
+
+# Notebook & debugging
+notebook = ["notebook>=7.0.0,<8"]
+debug = ["debugpy>=1.8.0,<2.0.0"]
+dev = [
+    "pytest>=7.4.0,<10",
+    "pytest-cov>=6.0.0,<8.0.0",
+    "pytest-asyncio>=0.21.0,<1.4",
+    "coverage>=7.3.0,<8",
+    "mypy>=1.7.0,<2",
+    "pre-commit>=4.0.0,<5",
+    "notebook>=7.0.0,<8",
+    "deptry>=0.20.0,<0.26",
+    "pylint>=3.0.0,<5",
+    "ruff>=0.9.0,<=0.15.10",
+    "gitpython>=3.1.40,<4",
+    "mkdocs-material>=9.5.0,<10",
+    "mkdocs-minify-plugin>=0.8.0,<0.9",
+    "mkdocstrings[python]>=0.26.0,<1.1",
+]
+
+# ---------------------------------------------------------------------------
+# URLs & entry points
+# ---------------------------------------------------------------------------
+
+[project.urls]
+Homepage = "https://www.mflow.ai"
+Repository = "https://github.com/FlowElement-ai/m_flow"
+Changelog = "https://github.com/FlowElement-ai/m_flow/releases"
+
+[project.scripts]
+mflow = "m_flow.cli.app:main"
+
+# ---------------------------------------------------------------------------
+# Build configuration
+# ---------------------------------------------------------------------------
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build]
+exclude = [
+    "/.github",
+    "/.data",
+    "/bin",
+    "/deployment",
+    "/dist",
+    "/docs",
+    "/examples",
+    "/logs",
+    "/m_flow-frontend",
+    "/m_flow-mcp",
+    "/m_flow-starter-kit",
+    "/notebooks",
+    "/profiling",
+    "/scripts",
+    "/tools",
+    "/.build-venv",
+    "/.venv",
+    "/coreference",
+    "/alembic",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["m_flow", "mflow_workers"]
+
+[tool.hatch.metadata]
+allow-direct-references = true
+
+[tool.hatch.envs.default]
+python = "3.11"
+
+# ---------------------------------------------------------------------------
+# Linting & formatting (ruff)
+# ---------------------------------------------------------------------------
+
+[tool.ruff]
+line-length = 120
+exclude = [
+    "build/",
+    "dist/",
+    "migrations/",
+    "notebooks/",
+]
+
+[tool.ruff.lint]
+ignore = [
+    "F401",   # unused imports (re-exports in __init__.py)
+    "F403",   # wildcard imports
+    "E402",   # module-level import not at top (lazy / circular-safe imports)
+    "F821",   # undefined name in string type annotations (forward refs)
+]
+
+[tool.ruff.lint.per-file-ignores]
+"m_flow/tests/**" = ["S101", "PLR2004", "E712"]
+"examples/**" = ["T201", "E712", "E722", "F841"]
+"coreference/**" = ["F841", "F601"]
+"m_flow-mcp/**" = ["E701"]
+
+# ---------------------------------------------------------------------------
+# Testing
+# ---------------------------------------------------------------------------
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["m_flow/tests"]
+pythonpath = ["."]
+filterwarnings = ["ignore::DeprecationWarning"]
+
+# ---------------------------------------------------------------------------
+# Type checking
+# ---------------------------------------------------------------------------
+
+[tool.mypy]
+python_version = "3.11"
+warn_return_any = true
+warn_unused_configs = true
+ignore_missing_imports = true
+exclude = ["m_flow/tests", "examples", "notebooks"]
+
+# ---------------------------------------------------------------------------
+# Coverage
+# ---------------------------------------------------------------------------
+
+[tool.coverage.run]
+source = ["m_flow"]
+omit = ["m_flow/tests/*", "m_flow/llm/backends/baml/*"]
+
+[tool.coverage.report]
+exclude_lines = ["pragma: no cover", "if TYPE_CHECKING:", "if __name__"]

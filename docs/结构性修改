@@ -1,0 +1,37 @@
+请按下面的新方向重构 M5/M6，不要继续照搬声纹系统的 “CandidatePool → QuarantineDB → SpeakerDB” 主路径。
+
+为什么要改：
+1. 声纹系统的最小信息载体是窗口/语音段/一句话，所以单次证据薄，才需要跨 session 的隔离库去累计，自动注册也依赖“累计时长 / 会话数 / 段数”等跨会话条件。
+2. 人脸系统不一样。我们当前用于身份决策的不是单帧，而是围绕一个 session person 聚合出来的 candidate / 证据包。它已经包含多次高质量 embedding、模板、centroid、prototype、一致性、质量等信息，本身就是强证据，不应该默认要求“跨多个 session 才能注册”。
+3. 如果把跨 session 隔离池作为未知人的默认主路径，会错过“第一次使用就已经非常清晰、稳定、存在感很强的人”这是我们更想想确保的功能；反过来，那些在每次 session 里都只是表现平平的人，也不应该靠多次 session 机械累加被自动注册——这很容易把办公室背景里偶尔出现的无关同事慢慢注册进去。
+4. 对人脸来说，真正适合跨 session 做的事情应该是：已知库维护、模板保守更新、重复身份观察、极谨慎的后续合并，而不是把弱未知人慢慢养成正式身份。
+
+因此请改成下面这套结构：
+
+A. M5 不再只是 “US -> candidate pool -> session end summary”，而要改成“围绕 session person 的 session 内身份状态机”。
+B. 先判断一个 session person 是否值得拥有身份（identity_eligible / worthy_of_identity）。不值得的对象不要进入后续身份决策主通道。这里其实就是我们现在判断要不要赋予一个track person身份。
+C. 对 identity_eligible 的对象，在当前 session 内持续判成三类：
+   - KNOWN_STRONG：明确匹配已有正式身份，直接绑定 known identity
+   - UNKNOWN_STRONG：明确不是已有身份；如果同时满足 register_ready，则在当前 session 直接自动注册新身份
+   - AMBIGUOUS / UB：介于两者之间，继续在当前 session 观察，有机会在同一 session 内转成前两类
+D. UNKNOWN_STRONG 只是“进入注册决策通道”的条件，不等于自动注册；必须再过 register_ready。
+E. register_ready 不要再直接沿用旧的 candidate ready 语义，它必须判断起来没有明显的漏洞例如硬性依赖 track_count >= 2。也不是必须必须硬性分成一下两种情况：
+   - 多轨迹稳健通路
+   - 单轨迹但强证据通路（长时间、高质量、高一致性、足够多样性）
+   判断条件应该是灵活的筛选出高质量的session person给予ready状态
+F. 不再建设“跨 session 未知人隔离池 / QuarantineDB”来把弱未知慢慢养成正式身份。那些在当前 session 里始终不够格的 candidate，不应靠跨 session 机械累加获得自动注册资格。
+G. M6 重新定义为“注册与已知库维护层”，主要做：
+   - register_new_identity（当前 session 内直接注册）
+   - bind/update known identity
+   - cross-session known maintenance（保守更新已知模板）
+   - duplicate watch / soft-link（怀疑新注册身份与老身份重复时，先软连接、先观察，不要轻易自动 merge）
+H. 明确区分 session_person_id 和 registered_identity_id。一个人在本 session 内可能先是 P#x，后面达到 register_ready 后被注册成 R#y，此后应建立清晰绑定关系 P#x -> R#y。
+I. 请同步调整状态名、日志、前端标签和导出结构，使它们反映新的语义：session 内完成“识别 / 注册决策”，跨 session 只负责“已知库维护 / 重复身份修正”。
+
+请先不要急着写散乱代码，先给我这四样东西：
+1. 你理解的新整体系统状态流转图 包含M5、M6
+2. 需要改动的数据结构 / 日志 / API 列表
+3. 一版最小可实施改造方案
+4. 风险点（特别是误注册、误合并、UI 标签兼容）
+
+确认后再开始实现。

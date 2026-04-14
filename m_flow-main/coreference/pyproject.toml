@@ -1,0 +1,99 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "chinese-coref"
+version = "1.0.0"
+description = "A rule-based Chinese coreference resolution system with support for 11 pronoun types"
+readme = "README.md"
+license = {text = "MIT"}
+requires-python = ">=3.9"
+authors = [
+    {name = "Junting Hua"}
+]
+keywords = [
+    "nlp",
+    "chinese",
+    "coreference",
+    "coreference-resolution",
+    "pronoun-resolution",
+    "anaphora",
+    "natural-language-processing",
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Text Processing :: Linguistic",
+]
+
+dependencies = [
+    "jieba>=0.42.1",
+    "pyyaml>=6.0",
+]
+
+[project.optional-dependencies]
+# Optional NLP backends for enhanced parsing
+nlp = [
+    "hanlp>=2.1.0",
+    "ltp>=4.2.0",
+]
+# Development dependencies
+dev = [
+    "pytest>=7.0.0",
+    "pytest-cov>=4.0.0",
+    "black>=23.0.0",
+    "isort>=5.12.0",
+    "mypy>=1.0.0",
+]
+# Testing only
+test = [
+    "pytest>=7.0.0",
+    "pytest-cov>=4.0.0",
+]
+# ONNX export and inference
+onnx = [
+    "onnx>=1.14.0",
+    "onnxruntime>=1.16.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/FlowElement-ai/m_flow"
+Documentation = "https://github.com/FlowElement-ai/m_flow#readme"
+Repository = "https://github.com/FlowElement-ai/m_flow.git"
+Issues = "https://github.com/FlowElement-ai/m_flow/issues"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["coreference_module*", "english_coreference*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_functions = ["test_*"]
+addopts = "-v --tb=short"
+
+[tool.black]
+line-length = 100
+target-version = ['py39', 'py310', 'py311', 'py312']
+include = '\.pyi?$'
+
+[tool.isort]
+profile = "black"
+line_length = 100
+
+[tool.mypy]
+python_version = "3.9"
+warn_return_any = true
+warn_unused_configs = true
+ignore_missing_imports = true

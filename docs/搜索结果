@@ -1,0 +1,121 @@
+我按你列的 1–8 项都查完了。下面给你的是能直接拿来做方案决策的版本，不是泛泛综述。
+
+先给总结
+
+如果你现在就要定路线，我的结论是：
+
+颜色先验这块，最可工程化的老牌公式仍然是 YCbCr Lip-Map / Enhanced Lip-Map；但如果只看“lip vs skin”的颜色分离，系统性比较里 HSV 的 Hue 表现最好。真正稳定的做法不是找一个固定阈值，而是 自适应阈值。
+嘴部遮挡检测这块，最新研究主线已经是 visibility-aware landmarks / unified face analysis，比如 OccFace 2026 和 FaceXFormer 2025；但我没有找到一个 2024–2026 已经很成熟、可直接上生产、而且“轻量到不用大模型”的 mouth-only 现成方案。
+手遮脸/物体遮脸不一定要穷举遮挡物类别。旧但很实用的路线是：在 mouth/lips 区域直接做 occluded vs not occluded 分类，特征用 HOG / LBP / landmark likelihood，再加一点时间平滑。文献里这条路是能打的。
+MediaPipe 不能当 visibility 真值来源。它会继续给你 landmarks，但这些点在遮挡时很可能是“看起来合理的预测”，不是“真实可见点”。
+结合你当前系统，现有前端只有 SCRFD 的 5 点关键点，Module 3 的对齐图又是给 ArcFace 用的 112×112 identity crop，这都不够支撑嘴部可见性/遮挡判断。真要做这条分支，必须在 M2 跟踪后单独拉出一个更适合 mouth ROI 的前端。
+1）Lip Map / 嘴唇像素分类：最成熟的颜色空间、公式、阈值
+
+如果你要一个手写可实现的颜色公式，最稳的仍然是经典 YCbCr Lip-Map。2012 的可访问论文里给出的公式是：
+LipMap = Cr² * (Cr² - η*(Cr/Cb))²，其中 η = 0.95 * ΣCr² / Σ(Cr/Cb)；Cr² 和 Cr/Cb 先归一化到 [0,1]。它的增强版再乘上 HSI/HS 的饱和度项：
+EnLipMap = S * Cr² * (Cr² - η*(Cr/Cb))²。这套东西的优点是：轻、老牌、实现直接。
+
+但如果你问“哪种颜色空间整体效果最好”，我查到的最系统的结论来自 2015 年对 33 种 lip segmentation colour transforms 的比较：
+
+做 lip–skin 分离时，HSV 的 Hue 最好，报告的最高准确率是 93.85%；
+做 lip–oral cavity 分离时，CIELAB 的 a* 最好；
+如果你想一个变换同时兼顾两者，pseudo hue 和 LUX 是更稳的折中。
+
+阈值这件事，结论反而很明确：没有一个靠谱的通用固定阈值。更成熟的做法是 Otsu / 自适应阈值，而不是“Cr 大于多少就一定是嘴唇”。2021 年的自适应阈值论文里，作者先用 Otsu 做颜色分割，再进一步优化阈值；同一张挑战图像里，阈值从 0.31 调到 0.435 才明显把外唇轮廓拉正，说明固定阈值非常脆弱。
+
+我给你的落地建议是：
+如果你要手工先验，首选 Enhanced Lip-Map (YCbCr + Saturation) + Otsu/自适应阈值。
+如果以后你做 parser/segmentation，这套颜色先验就降级成辅助项，不再当主裁判。这个建议的依据，是颜色变换本身差异可以把分割效果拉到 3 倍量级，而阈值又明显需要按图自适应。
+
+补一句：pseudo-hue 这条线我也查了。文献里它确实被长期当成 lip–skin 分离的经典变换族，通常是 red-dominance ratio 这一类写法，常见实现接近 R/(R+G)；但我这次检到的几份老 PDF 公式排版有些失真，所以我对它的“家族方向”有把握，对某一篇排版里的唯一标准式不想装得太绝对。
+
+2）嘴唇/嘴部遮挡检测：最新方法和有没有轻量现成方案
+
+最新研究里，真正先进的方向已经不是“嘴巴纹理低就算遮挡”这种单点 heuristic，而是显式 visibility 建模。
+OccFace (2026) 的核心就是：统一的 100-point dense layout、heatmap backbone、再加一个同时预测 landmark coordinate + per-point visibility 的 occlusion module；作者还专门强调它在 external occlusion 和 large head rotation / self-occlusion 下更稳。
+
+FaceXFormer (ICCV 2025) 则是更“系统级”的路线：把 face parsing、landmark detection、head pose、face visibility prediction 等十个任务合成一个统一模型，作者报告的 fp32 实时性能是 33.21 FPS。也就是说，学界现在的思路是：遮挡不是单独小问题，而是 face parsing / landmarks / pose / visibility 一起看。
+
+但如果你问我：“有没有一个现成、轻量、不上大模型的 mouth-occlusion detector，可以直接集成？”
+我这次的答案是：我没有搜到一个 2024–2026 已经成熟到可以直接拿来用的主流方案。 我搜到的最新强方法更像 OccFace / FaceXFormer 这种统一前端，而不是“小嘴巴 ROI 轻量 detector”。所以如果你不想直接上统一大模型，现实路线仍然是自己做 pseudo visibility / observability。这个判断是我基于检到的论文方向做的工程推断。
+
+3）手遮脸 / 物体遮脸：目前实用特征和轻量方案
+
+这块最有用的发现是：你不一定要检测“手”“杯子”“口罩”这些类别本身。
+Cambridge 那条 hand-over-face 线，直接把问题做成区域级分类：在嘴/下巴/中脸这些 face regions 上，提 HOG、facial landmark detection likelihood 等特征，然后用 linear SVM 分类，再用 10 帧 majority vote 做时序平滑。这个实时系统本身就说明：region-level occlusion classifier 是可以工作的，不必穷举遮挡物类别。
+
+同一条线更完整的实验里，lips occlusion detection 的最好结果来自 multi-modal linear SVM，达到 Accuracy 0.90 / F1 0.94；如果只看单模态，HOG 已经能到 F1 0.92。这对你很关键，因为它说明：HOG 本身就足够当一个强、轻、可解释的 mouth-occlusion 特征。
+
+另一个很值得保留的轻量方案来自 2015 的 mouth covered detection：作者在 mouth region 上提 LBP，比较了 ri / u2 / riu2 和 SVM/NN 的不同组合，最后选的是 LBP uniform pattern (u2) + radius 16 + NN(5)。也就是说，LBP 在“covered vs not covered”这个 ROI 级任务上确实有可验证的效果。
+
+所以这一项我给你的结论很明确：
+“显式检测遮挡物类别”不是必须主线；mouth ROI → HOG/LBP(+landmark likelihood) → 小分类器 → 时间平滑 是文献支持很强的轻量路线。
+
+4）MediaPipe Face Mesh / Face Landmarker 在遮挡时会怎样
+
+官方文档能确认两点：
+第一，Face Landmarker 的标准输出是 3D landmarks、blendshape scores、transformation matrices；
+第二，文档没有提供一个“这几个点当前是否被遮挡”的现成 visibility 输出接口。
+
+更关键的是，官方仓库 issue 里有非常直白的现象描述：作为神经网络模型，它会继续预测所有 landmarks，不管它们是否真的在视野里；另一个 issue 里，用户想拿 landmark visibility 判断口罩/遮挡，但实际发现 visibility 一直是 0，也没有拿到可用方案。这个信息虽然来自 issue 讨论，不是正式 benchmark，但它和你直觉是一致的：MediaPipe 在嘴部被遮挡时更可能“给你一个合理猜测”，而不是“告诉你我看不见”。
+
+所以如果你后面还继续用 MediaPipe 做前端，正确期待是：
+
+它可以给你稳定几何前端；
+但不能直接给你 visibility 真值；
+可利用的不是“有没有点”，而是这些点与图像证据是否一致。
+5）Visual Speech Detection / Visual VAD：无音频、只靠视频的轻量路线
+
+这项我也查了，因为它后面会直接影响你“说话/不说话”的最终模块。
+
+当前强结果里，CLIP-VAD (2024) 是很硬的一条：输入是单人的 upper-body video segment，输出 speaking / not speaking；作者在 RealVAD 的 zero-shot setting 上给出 87.2% 平均 F1，明显高于 visual-only UNICON 的 80.3 和 RealVAD baseline 的 51.5。但它不是轻量路线，更像强 baseline。
+
+S-VVAD (2021) 走的是另一条很有意思的路：它甚至不显式检测 lips/hands/body parts，而是直接从整帧学“谁在说话、什么时候在说话”，主打 end-to-end 和更强泛化。这说明 visual VAD 本身已经是成熟问题方向。
+
+如果只看“更轻、更可工程化”的信号，VVAD-LRS3 给了很实用的结论：它比较了 facial/lip images 和 facial/lip landmark features，结果是 face-image CNN-LSTM 最好，test set 到 92%；而 landmark features 明显更差。作者还指出，这类任务需要较长时间上下文，最终高性能大约用到 38 帧。这基本可以直接翻译成一句工程建议：以后你做说话判定，不要指望纯 landmarks；短时 face/mouth clip 更靠谱。
+
+6）嘴部区域纹理/结构描述子：除了颜色还能看什么
+
+如果你现在只想找轻量级“真嘴 vs 遮挡物”结构特征，我会把候选收敛成两个：
+
+第一是 LBP。
+LBP 的强项非常适合你这个问题：它对 monotonic illumination changes 有容忍度，而且计算简单。LBP 的综述把这两点讲得很明确。结合 mouth-covered 检测那篇 2015 论文，LBP 在小 mouth ROI 上确实是有效的。
+
+第二是 HOG。
+HOG 抓的是 oriented gradients，本质上就是边界/轮廓/局部形状。Cambridge 的 hand-over-face 结果已经说明，HOG 对嘴部遮挡是强单模态之一，拿来做 mouth ROI 的 covered-vs-not classifier 很合适。
+
+如果你只想要一个最小结论：
+颜色先验之外，最值得试的就是 LBP(u2/riu2) 和 HOG。
+其中 LBP 更像“纹理是否像嘴/皮肤/物体”，HOG 更像“边界结构是否像真实嘴唇轮廓”。
+
+7）Face parsing 轻量模型：有没有 <5ms 的嘴唇分割
+
+这一项我专门查了，但结论要老实说：
+我没有找到一篇 primary-source 论文，能直接支持“2024–2026 有一个 face parsing / lip segmentation 模型在你的场景下稳定 <5ms”这个说法。
+
+能确认的是两件事：
+
+BiSeNet 是实时分割的经典轻量 backbone，本体在 Cityscapes 上报告的是 105 FPS on Titan XP；它证明“轻量语义分割”本身是现实可行的。
+FaceXFormer 这种更强的一体化模型，在作者 setting 下是 33.21 FPS fp32，而且它做的是 parsing + landmarks + pose + visibility 等十个任务一起跑，不是超轻口部 parser。
+
+所以这项最准确的表述是：
+“crop-level 的小型 parser 很可能可行，但 <5ms 需要你在自己的硬件、mouth ROI 尺寸和 ONNX runtime 上实测；我没有找到可直接替你拍板的通用 benchmark。”
+
+8）OccFace per-point visibility：具体实现到什么程度
+
+OccFace 这篇我重点看了，因为它最贴近你想要的“visibility-aware 前端”。
+
+从 arXiv 摘要里，能确认的实现关键信息有这些：
+
+统一 100 点 dense layout
+heatmap-based backbone
+occlusion module，联合预测 landmark coordinates 和 per-point visibility
+visibility 监督是 manual labels + landmark-aware masking 的混合方式，伪 visibility 来自 mask–heatmap overlap
+评估里专门区分 visible / occluded landmarks，并报告 visibility 相关指标
+作者声称在 external occlusion 和 large head rotations 下更稳，同时保持 visible landmarks 的精度。
+
+对你最重要的启发不是“直接照抄 OccFace”，而是它明确把坐标和可见性拆开了：
+landmark location ≠ landmark visibility。这和你现在面临的 MediaPipe 问题是完全对应的。
+
+代码可用性这件事，我这次检索里找到了 arXiv 摘要和作者个人页面，但没有看到一个明确的官方 GitHub 代码入口。所以我会把它归类成：
+“方向极对，论文很有参考价值，但直接工程接入成本未知。”

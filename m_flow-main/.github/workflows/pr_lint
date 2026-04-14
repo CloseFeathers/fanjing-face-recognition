@@ -1,0 +1,51 @@
+# M-flow CI — Pull-request hygiene gate.
+#
+# Two independent jobs:
+#   title-lint   – ensures the PR title complies with Conventional Commits
+#   draft-release – keeps the GitHub release draft in sync
+#
+# Ref: https://www.conventionalcommits.org/en/v1.0.0/
+---
+name: quality | PR Conventional Commit Gate
+
+on:
+  pull_request:
+    types: [opened, reopened, edited, synchronize]
+
+permissions:
+  contents: read
+
+jobs:
+  title-lint:
+    name: "PR title ← conventional-commits"
+    runs-on: ubuntu-22.04
+    timeout-minutes: 5
+    permissions:
+      pull-requests: write
+      statuses: write
+    steps:
+      - name: Assert semantic prefix
+        id: sem
+        uses: amannn/action-semantic-pull-request@v5
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          # Alphabetically sorted conventional-commit type prefixes.
+          # See: https://github.com/commitizen/conventional-commit-types
+          types: "break\nchore\nci\ndocs\nfeat\nfix\nperf\nrefactor\nrevert\ntest\n"
+          requireScope: false
+          subjectPattern: ^.+$
+          subjectPatternError: "PR title body must not be empty"
+
+  draft-release:
+    name: "Refresh changelog draft"
+    runs-on: ubuntu-22.04
+    timeout-minutes: 5
+    permissions:
+      contents: write
+      pull-requests: read
+    steps:
+      - name: Update release-drafter
+        uses: release-drafter/release-drafter@v6
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

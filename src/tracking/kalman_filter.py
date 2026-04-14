@@ -1,0 +1,100 @@
+"""
+8 维 Kalman Filter —— 用于 bounding box 运动估计。
+
+状态向量 x = [cx, cy, w, h, vx, vy, vw, vh]
+观测向量 z = [cx, cy, w, h]
+运动模型: 恒速 (constant velocity)
+
+本实现为无状态工具类：mean/covariance 由 STrack 持有，
+KalmanFilter 仅提供 initiate / predict / update 纯函数。
+"""
+
+from __future__ import annotations
+
+import numpy as np
+
+
+class KalmanFilter:
+    """无状态 Kalman 滤波器，所有 track 共享同一实例。"""
+
+    _std_weight_position = 1.0 / 20
+    _std_weight_velocity = 1.0 / 160
+
+    def __init__(self) -> None:
+        ndim = 4
+        dt = 1.0
+
+        # 状态转移矩阵 F (8x8)
+        self._F = np.eye(2 * ndim, dtype=np.float64)
+        for i in range(ndim):
+            self._F[i, ndim + i] = dt
+
+        # 观测矩阵 H (4x8)
+        self._H = np.eye(ndim, 2 * ndim, dtype=np.float64)
+
+    # ------------------------------------------------------------------
+
+    def initiate(self, measurement: np.ndarray):
+        """从首次观测初始化状态。
+
+        Args:
+            measurement: [cx, cy, w, h]
+        Returns:
+            (mean, covariance)
+        """
+        mean_pos = measurement.astype(np.float64)
+        mean_vel = np.zeros(4, dtype=np.float64)
+        mean = np.concatenate([mean_pos, mean_vel])
+
+        h = measurement[3]
+        std = [
+            2 * self._std_weight_position * h,
+            2 * self._std_weight_position * h,
+            2 * self._std_weight_position * h,
+            2 * self._std_weight_position * h,
+            10 * self._std_weight_velocity * h,
+            10 * self._std_weight_velocity * h,
+            10 * self._std_weight_velocity * h,
+            10 * self._std_weight_velocity * h,
+        ]
+        covariance = np.diag(np.square(std))
+        return mean, covariance
+
+    def predict(self, mean: np.ndarray, covariance: np.ndarray):
+        """预测下一帧状态。"""
+        h = max(mean[3], 1.0)
+        std_pos = self._std_weight_position * h
+        std_vel = self._std_weight_velocity * h
+        Q = np.diag([
+            std_pos ** 2, std_pos ** 2, std_pos ** 2, std_pos ** 2,
+            std_vel ** 2, std_vel ** 2, std_vel ** 2, std_vel ** 2,
+        ])
+
+        mean = self._F @ mean
+        covariance = self._F @ covariance @ self._F.T + Q
+
+        # 保证 w, h > 0
+        mean[2] = max(mean[2], 1.0)
+        mean[3] = max(mean[3], 1.0)
+        return mean, covariance
+
+    def update(self, mean: np.ndarray, covariance: np.ndarray,
+               measurement: np.ndarray):
+        """用观测值校正状态。"""
+        h = max(mean[3], 1.0)
+        std = self._std_weight_position * h
+        R = np.diag([std ** 2] * 4)
+
+        projected_mean = self._H @ mean
+        projected_cov = self._H @ covariance @ self._H.T + R
+
+        # Kalman 增益
+        K = covariance @ self._H.T @ np.linalg.inv(projected_cov)
+
+        innovation = measurement.astype(np.float64) - projected_mean
+        new_mean = mean + K @ innovation
+        new_covariance = (np.eye(8) - K @ self._H) @ covariance
+
+        new_mean[2] = max(new_mean[2], 1.0)
+        new_mean[3] = max(new_mean[3], 1.0)
+        return new_mean, new_covariance

@@ -1,0 +1,760 @@
+先定一条最重要的原则
+
+你现在做的是 visual-only speaking detection。
+所以数据定义上必须先区分三类：
+
+正样本：视觉上明显在发音 / articulation
+负样本：视觉上明显不在发音
+忽略样本：视觉上本来就和说话太像，或者根本不可判
+
+这里最关键的一句是：
+
+“只动嘴不发声”不要当 hard negative。
+
+因为你现在没有音频，只靠 blendshape + VSDLM，本质上学的是“视觉发音状态”，不是“声带有没有振动”。
+如果你把“只动嘴不发声”硬标成 NOT_SPEAKING，模型会被喂一批视觉上几乎不可分的矛盾样本，训练会被污染。
+
+所以建议标签体系先这样定：
+
+1 = SPEAKING-like（视觉上在发音）
+0 = NOT_SPEAKING
+-1 = IGNORE（只动嘴不发声、遮挡、极端侧脸、严重模糊等）
+
+这样第一版模型会稳很多。
+
+A. 最佳的数据录制方案
+A1. 录制时必须覆盖哪些场景
+
+我建议你把场景分成三组：主训练场景、硬负样本场景、忽略/分析场景。
+
+1）主训练正样本（必须有）
+
+这些是真正拿来训练 SPEAKING 的：
+
+正脸正常说话
+正脸快说 / 慢说
+正脸短句说话（很多起停）
+左 10–20° 说话
+右 10–20° 说话
+左 20–35° 说话
+右 20–35° 说话
+说话时轻微摆头 / 点头 / 转头
+低幅度说话（嘴巴开合不夸张、偏含糊）
+微笑状态下说话
+
+这些场景是为了覆盖你现在最关心的问题：侧脸 15–40° 检测明显变差。
+
+2）主训练负样本（必须有）
+
+这些是真正拿来训练 NOT_SPEAKING 的：
+
+正脸闭嘴静止
+正脸微张嘴静止
+正脸张嘴呼吸但不说话
+左 10–20° 静止
+右 10–20° 静止
+左 20–35° 静止
+右 20–35° 静止
+只转头 / 点头 / 表情变化，但不说话
+微笑但不说话
+大笑但不说话
+打哈欠
+咀嚼 / 吃东西 / 含东西但不说话
+
+这里面最值钱的 hard negatives 是：
+
+微张嘴静止
+张嘴呼吸
+打哈欠
+咀嚼
+笑/大笑
+
+因为这些最容易被误判成 speaking。
+
+3）忽略/分析场景（建议录，但先不进主训练）
+
+这些不要直接喂给第一版二分类模型：
+
+只动嘴不发声（silent mouthing）
+嘴被遮挡
+极端侧脸（>35° 或 >40°）
+严重模糊 / 太远 / 太小
+喝水时杯子挡嘴
+
+这些先录下来，但标 IGNORE。
+后面可以专门分析：
+
+模型会不会把它们打成 speaking
+遮挡模块能不能先把它们挡掉
+A2. 每个场景录多久，数据量要多少
+第一阶段：验证方案
+
+先不要一上来大规模录。先做一版 pilot：
+
+1 个人
+2 次 session
+每次 10–15 分钟
+
+这已经足够回答：
+
+你的特征有没有信息量
+VSDLM 在不同 yaw 下到底怎么退化
+时序窗口多长最合适
+哪类 hard negative 最麻烦
+
+但这不够训练最终模型。
+
+第二阶段：训练可泛化模型
+
+如果你不是做“只服务一个固定用户”的个性化模型，而是要做通用 speaking detector，我建议：
+
+至少 8–10 人
+最好 12–20 人
+每人 2 次 session
+每次 10–15 分钟有效数据
+
+这样总 usable data 大概会有：
+
+正样本：80–150 分钟
+负样本：80–150 分钟
+
+对低维 tabular/sequence 小模型已经够用了。
+
+一个人够不够？
+够做 pipeline 验证、窗口搜索、特征筛选
+不够定最终权重和阈值
+
+因为：
+
+blendshape 的绝对值分布会有人差
+嘴型、说话方式、胡子、嘴唇厚薄、表情习惯都会影响特征分布
+VSDLM 对不同人嘴型的响应也可能不一样
+A3. 按键标注延迟怎么处理
+
+这个问题必须认真处理，不然你会把最关键的边界样本都标错。
+
+最佳做法
+
+不要把按键标签直接当真值。
+应该做三步：
+
+第一步：记录原始 key down / key up 时间戳
+
+不要只存每帧 pressed=1/0。
+要单独记录事件：
+
+key_down_ts
+key_up_ts
+第二步：训练前做时间对齐
+
+建议先用一个简单规则：
+
+按下边界整体向前平移 200–250ms
+松开边界整体向前平移 150–250ms
+
+也就是：
+你的“正在说话”区间整体往前拉一点。
+
+第三步：忽略边界附近的样本
+
+这是最重要的。
+在每次 key_down 和 key_up 附近，直接打 ignore：
+
+边界前后各 250–300ms
+这些帧不参与训练
+
+这样就不会让模型学到一堆“其实人在刚启动/刚停下来”的脏标签。
+
+更稳的升级做法
+
+在 pilot 数据录完后，抽几段人工看视频，估一个更靠谱的：
+
+onset_shift
+offset_shift
+transition_ignore_ms
+
+也就是说，先人工校正少量数据，再把这个校正规则批量应用到全数据集。
+
+不建议的做法
+
+不建议为了追求边界精确，要求录制者“非常精确地按空格”。
+人做不到，而且会影响说话自然度。
+
+A4. 每帧该记录哪些原始特征
+原则
+
+录制时只存原始信号和上下文，不要把特征工程锁死在录制阶段。
+
+滑窗统计量、差分、EMA、energy 这些都应该在训练 pipeline 里算。
+否则你后面想改窗口长度、改导数定义、改归一化方式，会非常痛苦。
+
+每帧建议至少记录这些
+1）时间和上下文
+session_id
+subject_id
+frame_id
+timestamp_ms
+fps_estimate
+scenario_id
+scenario_name
+raw_key_pressed
+raw_label
+ignore_flag
+2）头部姿态
+yaw
+abs_yaw
+建议顺手也存：
+pitch
+roll
+
+因为以后你很可能会发现 pitch 也有影响。
+
+3）VSDLM
+vsdlm_prob_open_raw
+vsdlm_valid_flag
+vsdlm_masked_or_weighted（后处理再生成也行）
+4）Blendshape
+
+你现在说的 10 个嘴相关必须存，但我建议直接把全部 52 个都存下来。
+
+因为：
+
+额外存储成本很低
+后面如果发现别的系数有帮助，不用重新录
+
+至少当前 mouth subset 要有：
+
+jawOpen
+mouthClose
+mouthFunnel
+mouthPucker
+mouthStretchLeft
+mouthStretchRight
+mouthUpperUpLeft
+mouthUpperUpRight
+mouthLowerDownLeft
+mouthLowerDownRight
+5）质量/可靠性上下文
+
+即使 speaking 模型本身不判 occlusion，也建议存：
+
+face_presence_confidence（如果有）
+mouth_roi_w
+mouth_roi_h
+mouth_roi_area
+mouth_roi_blur_score
+landmark_tracking_ok / mesh_ok
+是否通过你当前的“嘴部可用性 gate”（如果有）
+
+这些特征将来非常有用，尤其是分析误判的时候。
+
+A5. 差值和滑窗统计量该什么时候算
+
+训练时算，不要录制时算。
+
+录制时只保留原始时间序列。
+训练 pipeline 再生成：
+
+一阶差分 Δx
+绝对差分 |Δx|
+滑窗 mean/std/min/max/range
+EMA
+slope
+energy / motion magnitude
+
+这样你可以自由试：
+
+8 帧窗口
+12 帧窗口
+16 帧窗口
+24 帧窗口
+
+而不用重录数据。
+
+A6. 数据格式：CSV 够不够？要不要视频？要不要嘴部 ROI？
+最低配置
+一个逐帧表格文件
+一个完整视频文件
+一个按键事件文件
+我推荐的结构
+必须保存
+原始视频
+session.mp4
+逐帧特征表
+原型阶段 CSV 就够
+真正开始规模化时建议 Parquet
+按键和场景事件
+events.jsonl
+强烈建议保存
+mouth ROI 视频
+不要存成一堆 JPG
+直接存成一个小的 mouth_roi.mp4
+为什么视频必须保存
+
+因为你后面一定会遇到这些问题：
+
+为什么这段被误判？
+这个 yaw 明明不大，怎么模型还是漏了？
+这个 hard negative 实际上是不是该标 ignore？
+
+没有视频，你没法回看，也没法重新定义标签。
+
+为什么 mouth ROI 也建议存
+
+因为：
+
+VSDLM 就是吃这个的
+后面如果你想试 tiny CNN / 重新训练 mouth model，不用重录
+存视频比存逐帧图片更省空间、更好管理
+B. 最佳的模型选择
+B1. 先给结论
+
+第一版最推荐：
+
+窗口特征工程 + XGBoost / LightGBM
+
+第二推荐：
+
+小型 causal 1D CNN
+
+不推荐作为第一版主力：
+
+LSTM / GRU
+
+一定要做的：
+
+先跑一个 Logistic Regression 作为 baseline
+
+B2. 为什么我最推荐树模型而不是 LSTM
+
+你当前的问题本质是：
+
+输入维度很低（blendshape + prob_open + yaw）
+数据量一开始不会特别大
+你又要求 CPU < 1ms
+你现在最需要的是：替代手工权重和阈值
+
+这正是树模型擅长的场景。
+
+XGBoost / LightGBM 的优点
+对 tabular 特征很强
+很适合 raw + stats + gating features
+非线性交互能学出来（比如 “yaw 大时不要信 VSDLM”）
+训练容易
+解释性强（能看 feature importance）
+CPU 推理极快
+不需要太大数据量
+Logistic Regression 的价值
+
+它未必是最终最好，但必须跑。
+因为它能告诉你：
+
+这个任务是不是线性就能做大半
+哪些特征方向最有用
+你的 feature engineering 是否已经很强
+为什么 LSTM / GRU 不是首选
+
+不是说不能做，而是：
+
+训练复杂度更高
+更容易吃小数据亏
+调参更费劲
+部署/调试比树模型麻烦
+在你这种低维信号上，不一定比“好特征 + 小树模型”更强
+B3. 时序怎么处理
+
+你说得对，这不是单帧问题。
+但“时序处理”不等于一定要上 RNN。
+
+我建议先按下面顺序做：
+
+方案 1（最推荐）
+单帧原始特征 + 过去 N 帧的滑窗统计量
+
+也就是输入仍然是一帧一个样本，但每帧特征包含：
+
+当前值
+最近 N 帧的均值
+标准差
+max/min/range
+一阶差分均值
+articulation energy
+
+这套特征喂给：
+
+Logistic Regression
+XGBoost / LightGBM
+小 MLP
+
+这是最稳、最快、最适合你现在的方案。
+
+方案 2（第二推荐）
+过去 N 帧原始序列 → 小型 causal 1D CNN
+
+如果树模型到顶了，再试这个。
+
+为什么是 1D CNN 而不是 LSTM：
+
+更容易 ONNX
+CPU 更稳
+对固定短窗口很适合
+实时 causal 推理更清晰
+方案 3
+过去 N 帧原始序列 → 小 GRU/LSTM
+
+可以试，但我不会把它放在第一位。
+
+B4. 滑动窗口多长合适
+
+VVAD-LRS3 的 38 帧不能直接照搬。
+那是图像级视觉语音任务，不是你这种已经压缩成 blendshape / prob_open 的语义特征。
+
+你的窗口应该更短。
+
+我建议第一轮直接 sweep：
+
+8 帧
+12 帧
+16 帧
+20 帧
+24 帧
+
+如果是 30fps，大概对应：
+
+8 帧 ≈ 267ms
+12 帧 ≈ 400ms
+16 帧 ≈ 533ms
+20 帧 ≈ 667ms
+24 帧 ≈ 800ms
+我的主观优先级
+
+先重点试：
+
+12 帧
+16 帧
+20 帧
+
+因为 speaking 的口型动态通常 0.4–0.7s 就足够捕到模式了。
+再长会增加延迟，也更容易把边界糊掉。
+
+B5. 在 CPU < 1ms 限制下，哪些模型被排除了
+安全可用
+Logistic Regression
+Linear SVM
+XGBoost / LightGBM（小树）
+小 MLP（如 32–64 hidden）
+小 1D CNN（窗口不大时）
+不建议第一版上
+RBF SVM
+大 MLP
+大 GRU / LSTM
+Transformer 类
+
+你这个约束下，树模型 + 特征工程最可能一把成。
+
+B6. 要不要做数据增强
+
+要做，但不要过火。
+
+第一版最值得做的不是花哨增强，而是：
+
+可以做的
+小幅 Gaussian noise 到 blendshape（基于实测噪声量）
+小幅随机 temporal jitter
+随机丢掉 VSDLM（模拟不可用）
+对 side-face 样本做适度重采样 / class weighting
+暂时不要做的
+生造“侧脸压缩”规则增强
+太强的 mixup/cutmix 类思路
+
+因为你现在最缺的不是增强技巧，而是真实 side-face 数据。
+
+B7. 用什么评估指标
+
+Accuracy 不够。
+
+我建议：
+
+主指标
+Positive class F1（speaking 的 F1）
+必看分项
+Precision
+Recall
+还要看
+按 yaw 分桶的 F1
+0–10°
+10–20°
+20–30°
+30–40°
+按场景分组
+微张嘴静止
+呼吸
+打哈欠
+咀嚼
+微笑/大笑
+说话+摆头
+线上更实用的两个指标
+False positive seconds per minute
+平均 onset / offset 延迟
+
+这两个比纯 frame accuracy 更像真实体验。
+
+误报和漏报哪个更不能接受？
+
+在你这个系统里，我建议优先压误报。
+
+因为：
+
+静止被判 speaking，会把“谁在说话”的关联搞乱
+漏一点说话帧，后面还能靠时序平滑补回来
+误报会让系统很“吵”
+
+所以阈值选择上，我会偏向：
+
+Precision 优先于 Recall
+具体可用 F0.5 辅助调阈值
+B8. 训练/测试怎么切分
+
+绝对不能随机 shuffle 帧。
+
+因为相邻帧几乎是重复样本。
+随机打散会让测试集泄漏得非常严重。
+
+正确切法
+如果只有 1 个人 pilot
+
+按 录制块 / session 切分：
+
+train：若干完整块
+val：完整块
+test：完整块
+
+不要把同一段连续录制拆到 train/test。
+
+如果有多人
+
+按 人切分 最有价值：
+
+train subjects
+val subjects
+test subjects
+
+至少 test 里要有训练时没见过的人。
+这样你才能知道模型到底能不能泛化。
+
+C. 部署方式
+第一版推荐
+
+如果最后赢家是：
+
+Logistic Regression
+XGBoost / LightGBM
+小 MLP
+
+那我建议第一版直接在 Python 里原生推理，不必一开始就强上 ONNX。
+
+原因
+推理时间本来就很小
+集成最简单
+调试最容易
+阈值和后处理改起来最快
+建议的部署结构
+在线输入
+
+每帧更新一次 ring buffer，维护最近 N 帧。
+
+在线特征生成
+
+从过去 N 帧生成 causal window features。
+
+模型输出
+
+输出 speaking_prob
+
+后处理
+
+不要直接 prob > threshold 就宣布 speaking。
+要加一个小状态机 / hysteresis：
+
+prob > θ_on 持续 M 帧 → 进入 SPEAKING
+prob < θ_off 持续 M 帧 → 退出 SPEAKING
+
+这样稳定度会大幅提升。
+
+ONNX 要不要做
+如果最终用 tiny 1D CNN / MLP，可以再导 ONNX
+如果最终是 XGBoost/LogReg，第一版没必要强求 ONNX
+D. VSDLM 信号的角度限制处理
+D1. 你现在的硬屏蔽方案能不能用
+
+能用，而且作为第一版是合理的。
+但我不觉得它是最优的最终形态。
+
+你现在的做法：
+
+vsdlm_masked = prob_open if |yaw| < 15 else 0.0
+
+最大的问题不是“思想错”，而是：
+
+0.0 同时代表两种完全不同的含义
+
+真的闭嘴
+这个特征现在不可信、被强行屏蔽
+
+这会让模型混淆：
+
+“闭嘴”
+“缺失/无效”
+D2. 比硬屏蔽更好的做法
+
+我更推荐下面这三种之一。
+
+方案 1（最推荐）
+value + validity flag
+
+训练时给模型两个特征：
+
+vsdlm_value
+vsdlm_valid
+
+其中：
+
+当 |yaw| 小时：vsdlm_valid = 1
+当 |yaw| 大时：vsdlm_valid = 0
+
+而 vsdlm_value 可以：
+
+保留原始值
+或保留 masked 值
+
+这样模型至少知道：
+“这不是闭嘴，而是这个通道当前不可用。”
+
+方案 2（更好）
+软可靠性加权
+
+定义一个可靠性 r(yaw)，不要一步砍死。
+
+例如：
+
+r = 1.0                      if |yaw| <= 10
+r = (25 - |yaw|) / 15        if 10 < |yaw| < 25
+r = 0.0                      if |yaw| >= 25
+
+然后喂给模型：
+
+vsdlm_weighted = prob_open * r
+vsdlm_reliability = r
+
+这比硬 15° 截断更平滑，也更符合真实退化过程。
+
+方案 3（如果你用 XGBoost）
+用 missing value
+
+当 |yaw| 超过阈值时，把 vsdlm_value 置为 missing/NaN，交给树模型自己处理。
+这比强行写 0.0 更语义正确。
+
+D3. 15° 合不合理
+
+可以拿来当初始值，但不应该拍脑门定死。
+
+正确做法是用你录好的数据去画 VSDLM 可靠性曲线。
+
+具体怎么做
+
+按 |yaw| 分桶：
+
+0–5°
+5–10°
+10–15°
+15–20°
+20–25°
+25–30°
+30–35°
+35–40°
+
+然后在每个桶里，单独评估 VSDLM 自己 的 speaking discrimination 能力，例如：
+
+speaking vs not 的 AUC
+最优阈值下的 F1
+正负样本均值差
+calibration
+你要找的不是“某个魔法角度”
+
+而是：
+
+VSDLM 从哪一段开始明显退化
+
+你很可能会发现：
+
+0–10° 很稳
+10–20° 还能用，但变差
+20° 以后明显崩
+
+那就不该用硬 15°，而应该用：
+
+τ1 = 10°
+τ2 = 25°
+做 soft gating
+D4. 我对这块的最终建议
+不建议
+vsdlm_masked = 0.0
+
+作为唯一处理方式。
+
+更推荐
+
+训练时给模型这些：
+
+vsdlm_raw
+vsdlm_reliability
+vsdlm_weighted
+vsdlm_valid
+abs_yaw
+
+如果你担心模型滥用 raw 值，那至少保留：
+
+vsdlm_weighted
+vsdlm_valid
+
+这样模型既拿到了“嘴开概率”，又知道“这东西现在靠不靠谱”。
+
+我给你的最终方案
+数据录制
+先做 1 人 × 2 session × 10–15 分钟 的 pilot
+录制内容必须覆盖：
+正脸说话
+侧脸说话
+微张嘴静止
+呼吸
+笑
+打哈欠
+咀嚼
+silent mouthing 不进主训练，标 ignore
+每帧保存：
+全部 52 blendshape
+prob_open raw
+yaw/pitch/roll
+valid/quality/context
+必须保存视频
+最好再保存 mouth ROI 视频
+模型
+第一版：causal window features + XGBoost
+baseline：Logistic Regression
+第二实验：tiny causal 1D CNN
+不建议第一版就上 LSTM/GRU
+窗口
+优先试：12 / 16 / 20 帧
+评估
+主指标：speaking F1
+重点看：
+precision/recall
+yaw 分桶表现
+hard negative 分场景表现
+false positive seconds/min
+onset/offset delay
+VSDLM
+初始可以先硬屏蔽
+但更优解是：
+weighted + validity/reliability
+最终阈值由数据决定，不要先定死 15°

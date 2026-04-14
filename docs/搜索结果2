@@ -1,0 +1,50 @@
+按你这 8 个问题，下面只列检索到的客观结果。
+
+一、嘴部遮挡检测：开源可用模型
+问题 1：已开源的嘴部/面部遮挡分类模型
+LamKser/face-occlusion-classification：GitHub 已开源；有 Kaggle 的训练模型集合和每个 backbone 的 Google Drive 权重；训练数据是裁剪后的人脸图像，二分类标签是 0 = Non-occluded face、1 = Occluded face；README 给了多种模型的参数量和推理时间，例如 ResNet18 11.1M / 3.69ms、ResNet50 23.5M / 7.15ms、ConvNeXt-Small 49.4M / 11.54ms；支持 PyTorch→ONNX 转换和 ONNX 推理。
+Oreobird/Face-Occlusion-Detect：GitHub 已开源；README 提供 COFW 数据和预训练模型的百度网盘下载；模型是 simple CNN face occlusion detect；训练/测试命令里给出的输入尺寸是 96×96；README 未给出参数量、推理速度，也未看到 ONNX 导出说明。
+liguiyuan/FaceMaskDetection-pytorch：GitHub 已开源；任务是 face mask detection, including face detection and mask recognition；README 提供百度网盘权重；给出两种分类模型规模：MobileNetv3 large 12M / 99.0%、MobileNetv3 small 3.8M / 98.6%；支持 PyTorch→ONNX→NCNN。
+waittim/mask-detector：GitHub 已开源；是 real-time video streaming mask detection，README 给出 webcam / video 推理命令；README 提到可以参考 20-PyTorch2ONNX.ipynb 转 ONNX，并给出 NCNN 部署流程；在已查 README 中未看到单独的预训练权重下载说明。
+问题 2：FaceXFormer 的代码和模型是否已开源？能否单独使用其中的 face parsing 或 visibility 模块？
+Kartik-3004/facexformer：GitHub 已开源；模型权重可从 Hugging Face kartiknarayan/facexformer 下载。
+官方 README 发布的是单张图片推理代码；通过 --task 参数可以跑 parsing、landmarks、headpose、attributes、age_gender_race、visibility 这些任务。
+我查到的是统一模型单 checkpoint 的任务切换推理；在已查 README 中没有单独拆出来的 standalone parsing-only 或 visibility-only 模块/独立权重。README 还写了 TODO：Release dataloaders、Release training script。
+问题 3：OccFace 2026 的代码是否已开源？
+我查到了 OccFace 2026 的 arXiv 论文页。
+本次检索里没有查到官方 GitHub 代码仓库或预训练权重下载页；CatalyzeX 页面显示的是 Request Code，没有公开代码链接。
+二、说话检测：开源可用模型
+问题 4：已开源的 visual-only 说话检测（Visual VAD）模型
+oarriaga/paz 里的 VVAD_LRS3_LSTM：代码已开源；模型函数定义为 Binary Classification for videos；输入形状是 (38, 96, 96, 3)；输出层是 Dense(1, activation="sigmoid")；当 weights='VVAD_LRS3' 时会自动下载 vvad_lrs3-weights-23.hdf5，下载地址来自 oarriaga/altamira-data 的 release。
+sariyanidi/VoiceActivityDetection：GitHub 已开源；README 明确写的是 Visual Voice Activity Detection；输入不是脸图，而是 3DI 生成的 canonical landmarks 文件 + 输入视频；输出是视频中 speaking moments / silent moments，并可生成输出视频。README 中未看到单独的预训练权重下载链接。
+IIT-PAVIS/S-VVAD：GitHub 已开源；README 写的是 Visual Voice Activity Detection by Motion Segmentation；流程里使用 VAD labels: 0 = not-speaking, 1 = speaking；README 提供 pre-trained ResNet50 models for TensorFlow 的 Google Drive 链接；该方法不是“单个嘴部 clip → 二分类”的简化接口，而是基于 dynamic images、Grad-CAM、FCN 和 bounding box generation 的完整流程。
+TaoRuijie/TalkNet-ASD：GitHub 已开源，且有预训练模型自动下载；但官方 README 描述的是音视频 ASD，提供 pretrain_AVA.model 和 pretrain_TalkSet.model，以及 raw video demo；在已查 README 中没有单独公开的 visual-only 预训练分支说明，也没有 ONNX 说明。
+PINTO0309/VSDLM：GitHub 已开源，支持 ONNX；但它的任务是 lip movement / open–closed mouth，输出是 prob_open，不是 speaking/not_speaking。README 给了多个模型尺寸和 CPU 延迟，例如 P 112KB / 0.18ms 到 L 6.4MB / 0.91ms。
+问题 5：Active Speaker Detection（ASD）领域的轻量级开源模型
+Junhua-Liao/Light-ASD：GitHub 已开源；README 说明权重已放在 weight 文件夹；官方论文报告 1.0M 参数、0.6G FLOPs、94.1% mAP，并写到 single-frame inference time ranges from 0.1ms to 4.5ms；README 还给了 raw video demo，用 Columbia_test.py --videoName ... 跑。已查 README 中未看到 ONNX 说明。
+Junhua-Liao/LR-ASD：GitHub 已开源；README 说明权重已放在 weight 文件夹；README 写验证集 mAP 94.45%；IJCV 2025 论文页写的是 0.84M 参数、0.51G FLOPs、94.5% mAP，single-frame inference time 0.1–3.9ms。已查 README 中未看到 ONNX 说明。
+SJTUwxz/LoCoNet_ASD：GitHub 已开源；README 提供 Google Drive 的 AVA 预训练权重；它是完整 ASD 模型，不是轻量 mouth-only 模型；在已查 README 中未看到 ONNX 说明。
+plnguyen2908/LASER_ASD：GitHub 已开源；README 提供训练和评估脚本，并要求先用 MediaPipe 生成 landmarks；在已查 README 中我看到了 dataset 下载、landmark 创建和 evaluation 脚本，但没有在 README 中看到明确的预训练权重下载链接；另一个 wrapper 项目说明权重需要从原仓库下载。已查 README 中未看到 ONNX 说明。
+TaoRuijie/TalkNet-ASD：GitHub 已开源；预训练模型会自动下载到 TalkNet_ASD/pretrain_AVA.model，README 给出 92.3 mAP（val）/ 90.8 mAP（test），也提供 raw video demo；它是标准 ASD baseline，但不是轻量路线。已查 README 中未看到 ONNX 说明。
+三、轻量 face parsing / lip segmentation
+问题 6：已开源的轻量级 face parsing 模型（特别是 lip/mouth 类别）
+yakhyo/face-parsing：GitHub 已开源；基于 BiSeNet；README 说明提供 GitHub Releases 里的模型权重，并同时提供 PT 和 ONNX 文件；训练数据是 CelebAMask-HQ (30,000 images)；默认训练输入尺寸是 512×512；README 写模型会分割 eyes, nose, mouth, contour 等 facial components；模型规模给出为 ResNet18 ~11.2M / ~43MB、ResNet34 ~21.3M / ~82MB；支持 ONNX export 和 ONNX inference。在已查页面里没有看到 CPU <10ms 的官方数字。
+yakhyo/uniface：GitHub 已开源；是基于 ONNX Runtime 的统一人脸分析库；README 写明包含 Face Parsing — BiSeNet semantic segmentation (19 classes)，并支持 CPUExecutionProvider；解析任务对应 face-parsing 仓库。已查页面中未给出 face parsing 的 CPU 毫秒级 benchmark。
+instant-high/face-parsing-onnx：我查到了这个 ONNX 化仓库的搜索结果；它是把 face parsing / face masking 转到 ONNX Runtime 的项目。搜索结果里没有给出预训练权重、CPU 速度或 lip 类别细节。
+zllrunning/face-parsing.pytorch：我查到的搜索结果显示该仓库提供预训练模型下载到 res/cp；但在这次打开的页面里，我没有进一步拿到 CPU 速度、ONNX 和 lip 类别细节。
+四、HOG/LBP 遮挡分类的训练数据
+问题 7：已标注的嘴部/下半脸遮挡数据集
+COFW：thohemp/facial-landmark-datasets 的数据集汇总里写明，COFW 有 1,345 train + 507 test，29 landmarks，并且附带 Occlusion state，标注方式是 manually。
+COFW68 benchmark：golnazghiasi/cofw68-benchmark 为 COFW test data 提供了 68 keypoints 的手工标注；每张图的 .mat 文件里包含 keypoints 及其 visibilities，评估文件也要求提交每个 keypoint 的 occlusion state。
+MERL-RAV：在 thohemp/facial-landmark-datasets 的汇总表里，MERL-RAV 被写成 >19,000 张、68 landmarks、3 levels of occlusion、手工标注。
+ROF (Real World Occluded Faces)：ekremerakin/RealWorldOccludedFaces 已开源；数据集包含 3195 neutral images、1686 sunglasses images、678 masked images；README 明确写的是 upper-face and lower-face occlusions (i.e. face masks and sunglasses)，并提供 download.py。
+Hand2Face：bnojavan/Hand2Face 已开源；README 说明该项目区分 hand-over-face 与 scarves/hair/glasses/objects 等其他遮挡类型，并支持定位被遮挡区域；数据集可公开用于研究，但需要填写 EULA 后获取访问权限。
+FaceOcc：face3d0725/FaceExtraction 的 README 明确写了 FaceOcc 是 face occlusion dataset，遮挡类型覆盖 sunglasses, spectacles, hands, masks, scarfs, microphones, etc.；README 提供 Google Drive 的数据集和预训练模型链接。
+五、补充问题
+问题 8：MediaPipe Face Mesh / Face Landmarker 的 blendshape 输出能不能用来判断说话
+MediaPipe 官方文档写明：Face Landmarker 在打开 output_face_blendshapes 后，可以输出 blendshape scores；这些分数是 coefficients representing facial expression。
+官方文档还写明，这个模型 bundle 里有单独的 Blendshape 子模型，输入是 1 × 146 × 2，输出 52 个 blendshape scores。
+MediaPipe 官方源码里列出了 mouth/jaw 相关的 blendshape 名称，包括 jawOpen、mouthClose、mouthFunnel、mouthPucker、mouthSmileLeft/Right、mouthStretchLeft/Right、mouthUpperUpLeft/Right、mouthLowerDownLeft/Right 等。
+在这次检索到的 MediaPipe 官方文档和仓库里，我没有看到一个“直接把这些 blendshape 系数做成 speaking/not_speaking 判断”的官方模型或官方示例。
+
+如果你要，我下一条可以把这些结果整理成**“可直接试用的仓库清单”**，只保留有权重、能跑、最接近你当前任务的那几项。

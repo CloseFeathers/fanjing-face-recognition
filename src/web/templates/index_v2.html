@@ -1,0 +1,748 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>心流元素 - 人脸识别系统</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg-base: #000000;
+  --bg-surface: #0a0a0a;
+  --bg-elevated: #141414;
+  --bg-hover: #1a1a1a;
+  --border-subtle: rgba(255,255,255,0.08);
+  --border-default: rgba(255,255,255,0.12);
+  --text-primary: #ffffff;
+  --text-secondary: #a0a0a0;
+  --text-tertiary: #666666;
+  --text-muted: #404040;
+  --success: #4da378;
+  --error: #b05a5a;
+  --warning: #c4ab65;
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+  --duration: 150ms;
+}
+* { margin:0; padding:0; box-sizing:border-box; }
+body {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  background: var(--bg-base);
+  color: var(--text-primary);
+  height: 100vh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  -webkit-font-smoothing: antialiased;
+  letter-spacing: -0.01em;
+  line-height: 1.5;
+}
+::-webkit-scrollbar { width: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--text-muted); border-radius: 2px; }
+
+/* ── Topbar ── */
+.topbar {
+  height: 48px;
+  background: var(--bg-surface);
+  border-bottom: 1px solid var(--border-subtle);
+  display: flex;
+  align-items: center;
+  padding: 0 20px;
+  flex-shrink: 0;
+}
+.brand {
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.status-dot {
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: var(--text-muted);
+  transition: all var(--duration);
+}
+.status-dot.running { background: var(--success); box-shadow: 0 0 8px rgba(77,163,120,0.5); }
+.topbar-center { flex:1; display:flex; justify-content:center; }
+.mode-select {
+  background: transparent;
+  color: var(--text-secondary);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  padding: 5px 14px;
+  font-size: 12px;
+  font-family: inherit;
+  cursor: pointer;
+  transition: border-color var(--duration);
+}
+.mode-select:hover { border-color: var(--border-default); }
+.mode-select:focus { outline: none; border-color: var(--border-default); }
+.topbar-right {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  font-size: 11px;
+  color: var(--text-tertiary);
+  font-variant-numeric: tabular-nums;
+}
+.btn-icon {
+  background: none; border: none;
+  color: var(--text-tertiary);
+  cursor: pointer; font-size: 16px;
+  padding: 4px;
+  border-radius: var(--radius-sm);
+  transition: color var(--duration);
+}
+.btn-icon:hover { color: var(--text-secondary); }
+
+/* ── Main ── */
+.main { flex:1; display:flex; overflow:hidden; }
+
+/* ── Video ── */
+.video-area {
+  flex:1; display:flex; flex-direction:column;
+  background: var(--bg-base);
+  position: relative;
+  min-width: 0;
+}
+.video-wrapper {
+  flex:1; position:relative; overflow:hidden;
+}
+.video-wrapper img {
+  width:100%; height:100%;
+  object-fit: cover;
+  display: block;
+}
+.video-placeholder {
+  position:absolute; inset:0;
+  display:flex; align-items:center; justify-content:center;
+  color: var(--text-muted);
+  font-size: 14px;
+}
+
+/* ── HTML Overlay: boxes + labels ── */
+.overlay-container {
+  position:absolute; inset:0;
+  pointer-events: none;
+}
+.face-box {
+  position: absolute;
+  pointer-events: none;
+  /* 不用 transition，直接跳到新位置更跟手 */
+}
+/* 四角装饰线（替代整框边线，更有科技感） */
+.face-box::before, .face-box::after,
+.face-box .corner-bl, .face-box .corner-br {
+  content: '';
+  position: absolute;
+  width: 20px; height: 20px;
+  border-color: rgba(255,255,255,0.5);
+  border-style: solid;
+  border-width: 0;
+}
+.face-box::before {
+  top: 0; left: 0;
+  border-top-width: 2px; border-left-width: 2px;
+  border-top-left-radius: 4px;
+}
+.face-box::after {
+  top: 0; right: 0;
+  border-top-width: 2px; border-right-width: 2px;
+  border-top-right-radius: 4px;
+}
+.face-box .corner-bl {
+  bottom: 0; left: 0;
+  border-bottom-width: 2px; border-left-width: 2px;
+  border-bottom-left-radius: 4px;
+}
+.face-box .corner-br {
+  bottom: 0; right: 0;
+  border-bottom-width: 2px; border-right-width: 2px;
+  border-bottom-right-radius: 4px;
+}
+/* 状态变色 */
+.face-box.known::before, .face-box.known::after,
+.face-box.known .corner-bl, .face-box.known .corner-br {
+  border-color: rgba(255,255,255,0.6);
+}
+.face-box.speaking::before, .face-box.speaking::after,
+.face-box.speaking .corner-bl, .face-box.speaking .corner-br {
+  border-color: var(--success);
+}
+.face-box.speaking {
+  box-shadow: inset 0 0 30px rgba(77,163,120,0.08), 0 0 20px rgba(77,163,120,0.1);
+}
+.face-box.occluded::before, .face-box.occluded::after,
+.face-box.occluded .corner-bl, .face-box.occluded .corner-br {
+  border-color: var(--warning);
+}
+/* 标签 */
+.face-label {
+  position: absolute;
+  left: 0; right: 0;
+  bottom: calc(100% + 8px);
+  display: flex;
+  justify-content: center;
+}
+.face-label-inner {
+  background: rgba(0,0,0,0.75);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 6px;
+  padding: 4px 14px;
+  font-size: 13px;
+  font-weight: 500;
+  color: #fff;
+  white-space: nowrap;
+  letter-spacing: -0.01em;
+}
+.face-box.speaking .face-label-inner {
+  border-color: rgba(77,163,120,0.35);
+}
+.face-box.occluded .face-label-inner {
+  border-color: rgba(196,171,101,0.35);
+}
+.face-label .speak-icon {
+  margin-left: 6px;
+  font-size: 12px;
+}
+
+/* ── Controls ── */
+.video-controls {
+  height: 52px;
+  background: var(--bg-surface);
+  border-top: 1px solid var(--border-subtle);
+  display: flex;
+  align-items: center;
+  padding: 0 20px;
+  gap: 10px;
+}
+.btn {
+  padding: 7px 24px;
+  border: none;
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  font-weight: 500;
+  font-family: inherit;
+  cursor: pointer;
+  transition: opacity var(--duration);
+  letter-spacing: -0.01em;
+}
+.btn:active { opacity: 0.8; }
+.btn:disabled { opacity: 0.3; cursor: not-allowed; }
+.btn-primary { background: var(--text-primary); color: var(--bg-base); }
+.btn-primary:hover:not(:disabled) { opacity: 0.9; }
+.btn-secondary {
+  background: transparent;
+  color: var(--text-secondary);
+  border: 1px solid var(--border-subtle);
+}
+.btn-secondary:hover:not(:disabled) { background: var(--bg-hover); }
+.control-info {
+  margin-left: auto;
+  font-size: 11px;
+  color: var(--text-tertiary);
+}
+
+/* ── People panel ── */
+.people-panel {
+  width: 280px;
+  flex-shrink: 0;
+  background: var(--bg-surface);
+  border-left: 1px solid var(--border-subtle);
+  display: flex;
+  flex-direction: column;
+}
+.panel-header {
+  height: 48px;
+  padding: 0 16px;
+  display: flex;
+  align-items: center;
+  border-bottom: 1px solid var(--border-subtle);
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-tertiary);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.panel-body { flex:1; overflow-y:auto; padding:8px; }
+
+/* ── Person card ── */
+.person-card {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  padding: 12px;
+  margin-bottom: 6px;
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  transition: border-color var(--duration);
+}
+.person-card:hover { border-color: var(--border-default); }
+.person-card.speaking { border-color: rgba(77,163,120,0.3); }
+
+.person-avatar {
+  width: 48px; height: 48px;
+  border-radius: var(--radius-md);
+  background: var(--bg-base);
+  overflow: hidden;
+  flex-shrink: 0;
+}
+.person-avatar img { width:100%; height:100%; object-fit:cover; }
+.person-avatar.placeholder {
+  display:flex; align-items:center; justify-content:center;
+  color: var(--text-muted); font-size:18px;
+}
+
+.person-info { flex:1; min-width:0; }
+.person-name {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-primary);
+  margin-bottom: 2px;
+  cursor: pointer;
+  padding: 1px 4px;
+  margin: -1px -4px;
+  border-radius: var(--radius-sm);
+  transition: background var(--duration);
+}
+.person-name:hover { background: var(--bg-hover); }
+.person-name-input {
+  font-size: 13px;
+  font-weight: 500;
+  font-family: inherit;
+  color: var(--text-primary);
+  background: var(--bg-base);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-sm);
+  padding: 2px 6px;
+  width: 100%;
+  outline: none;
+}
+.person-identity {
+  font-size: 10px;
+  color: var(--text-tertiary);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  margin-bottom: 4px;
+}
+.person-status {
+  display:flex; align-items:center; gap:6px;
+  font-size: 11px;
+}
+.speak-dot {
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.speak-dot.spk { background: var(--success); box-shadow: 0 0 6px rgba(77,163,120,0.5); animation: pulse-s 2s infinite; }
+.speak-dot.sil { background: var(--text-muted); }
+.speak-dot.occ { background: var(--warning); }
+.speak-text { color: var(--text-tertiary); }
+.speak-text.spk { color: var(--success); }
+.speak-text.occ { color: var(--warning); }
+
+@keyframes pulse-s {
+  0%,100% { opacity:1; }
+  50% { opacity:0.4; }
+}
+
+.empty-state {
+  display:flex; flex-direction:column;
+  align-items:center; justify-content:center;
+  height:200px; color:var(--text-muted);
+  font-size:12px; gap:8px;
+}
+
+/* ── Settings ── */
+.settings-overlay {
+  display:none; position:fixed; inset:0;
+  background:rgba(0,0,0,0.6); z-index:100;
+}
+.settings-overlay.open { display:block; }
+.settings-panel {
+  position:fixed; top:0; right:0; bottom:0;
+  width:300px;
+  background: var(--bg-surface);
+  border-left:1px solid var(--border-subtle);
+  z-index:101;
+  padding:24px;
+  overflow-y:auto;
+  transform:translateX(100%);
+  transition:transform 0.2s ease;
+}
+.settings-overlay.open .settings-panel { transform:translateX(0); }
+.settings-title {
+  font-size:14px; font-weight:600;
+  margin-bottom:24px;
+  display:flex; justify-content:space-between; align-items:center;
+}
+.settings-close {
+  background:none; border:none;
+  color:var(--text-tertiary); font-size:18px; cursor:pointer;
+}
+.setting-group { margin-bottom:20px; }
+.setting-label {
+  font-size:10px; color:var(--text-tertiary);
+  text-transform:uppercase; letter-spacing:0.05em;
+  margin-bottom:8px;
+}
+.setting-row {
+  display:flex; justify-content:space-between;
+  align-items:center; padding:6px 0;
+}
+.setting-name { font-size:12px; color:var(--text-secondary); }
+.toggle {
+  position:relative; width:36px; height:20px;
+  background:var(--text-muted); border-radius:10px;
+  cursor:pointer; transition:background var(--duration);
+}
+.toggle.on { background:var(--text-secondary); }
+.toggle::after {
+  content:''; position:absolute;
+  top:2px; left:2px;
+  width:16px; height:16px;
+  background:var(--text-primary); border-radius:50%;
+  transition:left var(--duration);
+}
+.toggle.on::after { left:18px; }
+.setting-select {
+  background:var(--bg-elevated);
+  color:var(--text-secondary);
+  border:1px solid var(--border-subtle);
+  border-radius:var(--radius-sm);
+  padding:4px 8px; font-size:12px;
+  font-family:inherit;
+}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="brand">
+    <div class="status-dot" id="statusDot"></div>
+    <span>心流元素</span>
+  </div>
+  <div class="topbar-center">
+    <select class="mode-select" id="modeSelect">
+      <option value="standard">标准模式</option>
+      <option value="performance">高性能模式</option>
+      <option value="precision">精确模式</option>
+    </select>
+  </div>
+  <div class="topbar-right">
+    <span id="fpsDisplay">--</span>
+    <button class="btn-icon" id="btnSettings" title="设置">&#9881;</button>
+  </div>
+</div>
+
+<div class="main">
+  <div class="video-area">
+    <div class="video-wrapper" id="videoWrapper">
+      <div class="video-placeholder" id="videoPlaceholder">点击启动开始识别</div>
+      <img id="videoFeed" src="" style="display:none">
+      <div class="overlay-container" id="overlayContainer"></div>
+    </div>
+    <div class="video-controls">
+      <button class="btn btn-primary" id="btnStart" onclick="startPipeline()">启动</button>
+      <button class="btn btn-secondary" id="btnStop" onclick="stopPipeline()" disabled>停止</button>
+      <span class="control-info" id="personCount"></span>
+    </div>
+  </div>
+
+  <div class="people-panel">
+    <div class="panel-header">识别人物</div>
+    <div class="panel-body" id="peopleList">
+      <div class="empty-state">等待人物进入画面</div>
+    </div>
+  </div>
+</div>
+
+<div class="settings-overlay" id="settingsOverlay">
+  <div class="settings-panel">
+    <div class="settings-title">
+      <span>设置</span>
+      <button class="settings-close" onclick="closeSettings()">&#10005;</button>
+    </div>
+    <div class="setting-group">
+      <div class="setting-label">摄像头</div>
+      <div class="setting-row">
+        <span class="setting-name">设备</span>
+        <select class="setting-select" id="setCamDevice">
+          <option value="0">0</option><option value="1">1</option><option value="2">2</option>
+        </select>
+      </div>
+    </div>
+    <div class="setting-group">
+      <div class="setting-label">功能</div>
+      <div class="setting-row">
+        <span class="setting-name">说话检测</span>
+        <div class="toggle on" id="toggleSpeaking" onclick="this.classList.toggle('on')"></div>
+      </div>
+      <div class="setting-row">
+        <span class="setting-name">自动注册</span>
+        <div class="toggle on" id="toggleAutoReg" onclick="this.classList.toggle('on')"></div>
+      </div>
+    </div>
+    <div class="setting-group">
+      <div class="setting-label">检测精度</div>
+      <div class="setting-row">
+        <span class="setting-name">分辨率</span>
+        <select class="setting-select" id="setDetSize">
+          <option value="320">低</option><option value="480">中</option><option value="640" selected>高</option>
+        </select>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const MODES = {
+  standard:    { det_size:640, det_every_n:1, speaking:true },
+  performance: { det_size:480, det_every_n:3, speaking:false },
+  precision:   { det_size:640, det_every_n:1, speaking:true },
+};
+
+let running = false, pollId = null;
+
+document.getElementById('btnSettings').onclick = () =>
+  document.getElementById('settingsOverlay').classList.add('open');
+function closeSettings() {
+  document.getElementById('settingsOverlay').classList.remove('open');
+}
+document.getElementById('settingsOverlay').onclick = function(e) {
+  if (e.target === this) closeSettings();
+};
+
+function cfg() {
+  const m = MODES[document.getElementById('modeSelect').value];
+  return {
+    mode:'camera',
+    device: +document.getElementById('setCamDevice').value,
+    det_size: +document.getElementById('setDetSize').value || m.det_size,
+    det_thresh:0.5, det_every_n:m.det_every_n,
+    detector_emit_min_det:0.15, track_new_high_thres:0.50,
+    track_update_low_thres:0.15, sample_min_det:0.60,
+    max_age:30, min_hits:3, match_iou_threshold:0.3,
+    align_enabled:true, min_quality_det:0.60,
+    min_quality_area:900, min_quality_blur:40, max_samples:10,
+    embed_enabled:true, similarity_threshold:0.4,
+    margin_threshold:0.1, min_template_samples:3,
+    embed_cooldown_ms:200,
+    credit_enabled:true, credit_increment:1.0,
+    credit_decrement:0.5, credit_threshold:3.0, credit_max:10.0,
+    speaking_enabled: document.getElementById('toggleSpeaking').classList.contains('on') && m.speaking,
+    m5_enabled: document.getElementById('toggleAutoReg').classList.contains('on'),
+    m5_known_threshold:0.55, m5_band_threshold:0.35, m5_margin_threshold:0.10,
+    show_hud: false,
+  };
+}
+
+const _API_KEY = {{ api_key | tojson }};
+function apiFetch(url, opts={}) {
+  if(!opts.headers) opts.headers={};
+  opts.headers['X-API-Key']=_API_KEY;
+  return fetch(url, opts);
+}
+function escapeHtml(str) {
+  if(!str) return '';
+  const d=document.createElement('div');
+  d.textContent=str;
+  return d.innerHTML;
+}
+
+async function startPipeline() {
+  const b = document.getElementById('btnStart');
+  b.disabled=true; b.textContent='启动中...';
+  try {
+    const r = await apiFetch('/api/start',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(cfg())});
+    const d = await r.json();
+    if(d.ok){
+      running=true;
+      document.getElementById('statusDot').className='status-dot running';
+      document.getElementById('videoFeed').src='/video_feed?ts={{ stream_ts }}&sig={{ stream_sig }}';
+      document.getElementById('videoFeed').style.display='block';
+      document.getElementById('videoPlaceholder').style.display='none';
+      b.textContent='运行中';
+      document.getElementById('btnStop').disabled=false;
+      startPoll();
+    } else { b.disabled=false; b.textContent='启动'; alert(d.error||'启动失败'); }
+  } catch(e){ b.disabled=false; b.textContent='启动'; alert('连接失败'); }
+}
+
+async function stopPipeline() {
+  try{await apiFetch('/api/stop',{method:'POST'})}catch(e){}
+  running=false;
+  document.getElementById('statusDot').className='status-dot';
+  document.getElementById('videoFeed').style.display='none';
+  document.getElementById('videoFeed').src='';
+  document.getElementById('videoPlaceholder').style.display='flex';
+  document.getElementById('videoPlaceholder').textContent='已停止';
+  document.getElementById('btnStart').disabled=false;
+  document.getElementById('btnStart').textContent='启动';
+  document.getElementById('btnStop').disabled=true;
+  stopPoll();
+  document.getElementById('peopleList').innerHTML='<div class="empty-state">等待人物进入画面</div>';
+  document.getElementById('overlayContainer').innerHTML='';
+  document.getElementById('fpsDisplay').textContent='--';
+  document.getElementById('personCount').textContent='';
+}
+
+function startPoll(){ stopPoll(); pollId=setInterval(poll,400); }
+function stopPoll(){ if(pollId){clearInterval(pollId);pollId=null;} }
+
+async function poll(){
+  if(!running)return;
+  try{
+    const sr=await apiFetch('/api/stats');
+    const stats=await sr.json();
+    document.getElementById('fpsDisplay').textContent='FPS '+Math.round(stats.fps||0);
+
+    const pr=await apiFetch('/api/persons');
+    const persons=await pr.json();
+    const n=persons.length;
+    document.getElementById('personCount').textContent=n>0?n+' 人在画面中':'';
+    renderOverlay(persons);
+    renderCards(persons);
+  }catch(e){}
+}
+
+function renderOverlay(persons){
+  const c=document.getElementById('overlayContainer');
+  if(!persons||!persons.length){c.innerHTML='';return;}
+  let h='';
+  for(const p of persons){
+    if(!p.bbox)continue;
+    const [nx1,ny1,nx2,ny2]=p.bbox;
+    // 扩大 bbox 15% 以框住完整头部（检测框通常不包含下巴和发际线）
+    const bw=nx2-nx1, bh=ny2-ny1;
+    const pad=0.15;
+    const ex1=Math.max(0,nx1-bw*pad), ey1=Math.max(0,ny1-bh*pad);
+    const ex2=Math.min(1,nx2+bw*pad), ey2=Math.min(1,ny2+bh*pad*1.5);
+
+    const left=(ex1*100).toFixed(2);
+    const top=(ey1*100).toFixed(2);
+    const w=((ex2-ex1)*100).toFixed(2);
+    const ht=((ey2-ey1)*100).toFixed(2);
+
+    let boxCls='face-box';
+    if(p.mouth==='speaking') boxCls+=' speaking';
+    else if(p.mouth==='occluded') boxCls+=' occluded';
+    if(p.identity==='KNOWN_STRONG') boxCls+=' known';
+
+    let name=p.name||'';
+    if(!name){
+      if(!p.person_id) name='检测中';
+      else if(p.identity==='KNOWN_STRONG') name='已知用户 #'+(p.registered_id||p.person_id);
+      else if(p.identity==='AMBIGUOUS') name='识别中';
+      else if(p.identity==='UNKNOWN_STRONG') name='新用户';
+      else name='用户 #'+(p.person_id||p.track_id);
+    }
+
+    let emoji='';
+    if(p.mouth==='speaking') emoji='<span class="speak-icon">🎤</span>';
+    else if(p.mouth==='occluded') emoji='<span class="speak-icon">🤐</span>';
+    else if(p.mouth==='not_speaking') emoji='<span class="speak-icon">🔇</span>';
+
+    h+='<div class="'+boxCls+'" style="left:'+left+'%;top:'+top+'%;width:'+w+'%;height:'+ht+'%">'
+      +'<div class="corner-bl"></div><div class="corner-br"></div>'
+      +'<div class="face-label"><div class="face-label-inner">'+escapeHtml(name)+emoji+'</div></div>'
+      +'</div>';
+  }
+  c.innerHTML=h;
+}
+
+let _isEditing=false;
+function renderCards(persons){
+  if(_isEditing)return;
+  const el=document.getElementById('peopleList');
+  if(!persons||!persons.length){el.innerHTML='<div class="empty-state">等待人物进入画面</div>';return;}
+
+  persons.sort((a,b)=>{
+    if(a.mouth==='speaking'&&b.mouth!=='speaking')return -1;
+    if(b.mouth==='speaking'&&a.mouth!=='speaking')return 1;
+    return (a.person_id||999)-(b.person_id||999);
+  });
+
+  let h='';
+  for(const p of persons){
+    const cardCls=p.mouth==='speaking'?'person-card speaking':'person-card';
+    const dotCls=p.mouth==='speaking'?'spk':p.mouth==='occluded'?'occ':'sil';
+    const stText=p.mouth==='speaking'?'🎤 说话中':p.mouth==='occluded'?'🤐 被遮挡':'🔇 静默';
+    const stCls=p.mouth==='speaking'?'spk':p.mouth==='occluded'?'occ':'';
+
+    let displayName=p.name||'';
+    if(!displayName){
+      if(!p.person_id) displayName='检测中...';
+      else if(p.identity==='KNOWN_STRONG') displayName='已知用户 #'+(p.registered_id||p.person_id);
+      else if(p.identity==='AMBIGUOUS') displayName='用户 #'+p.person_id;
+      else if(p.identity==='UNKNOWN_STRONG') displayName='新用户 #'+p.person_id;
+      else displayName='用户 #'+(p.person_id||p.track_id);
+    }
+
+    let idText='';
+    if(p.identity==='KNOWN_STRONG') idText='已识别身份';
+    else if(p.identity==='AMBIGUOUS') idText='识别中';
+    else if(p.identity==='UNKNOWN_STRONG') idText='正在建档';
+    else idText='检测中';
+
+    const safeAvatar=(p.avatar&&/^[A-Za-z0-9+/=]+$/.test(p.avatar))?p.avatar:'';
+    const avHtml=safeAvatar?'<img src="data:image/jpeg;base64,'+safeAvatar+'">':'&#128100;';
+    const avCls=safeAvatar?'person-avatar':'person-avatar placeholder';
+
+    const canEdit=p.person_id!=null;
+    const pidInt=parseInt(p.person_id,10)||0;
+    const nameAttr=canEdit?'class="person-name" onclick="editName(this,'+pidInt+')"':'class="person-name" style="cursor:default"';
+    h+='<div class="'+cardCls+'" data-pid="'+pidInt+'">'
+      +'<div class="'+avCls+'">'+avHtml+'</div>'
+      +'<div class="person-info">'
+      +'<div '+nameAttr+'>'+escapeHtml(displayName)+'</div>'
+      +'<div class="person-identity">'+escapeHtml(idText)+'</div>'
+      +'<div class="person-status">'
+      +'<span class="speak-text '+stCls+'">'+stText+'</span>'
+      +'</div></div></div>';
+  }
+  el.innerHTML=h;
+}
+
+function editName(el,pid){
+  _isEditing=true;
+  const current=el.textContent;
+  const input=document.createElement('input');
+  input.className='person-name-input';
+  input.value=current;
+  input.placeholder='输入名字...';
+  el.replaceWith(input);
+  input.focus();
+  input.select();
+
+  async function save(){
+    const name=input.value.trim();
+    if(name&&name!==current){
+      try{
+        await apiFetch('/api/person/rename',{
+          method:'POST',
+          headers:{'Content-Type':'application/json'},
+          body:JSON.stringify({person_id:pid,name:name})
+        });
+      }catch(e){}
+    }
+    const span=document.createElement('div');
+    span.className='person-name';
+    span.textContent=name||current;
+    span.onclick=function(){editName(this,pid)};
+    input.replaceWith(span);
+    _isEditing=false;
+  }
+  input.onkeydown=function(e){if(e.key==='Enter')save();if(e.key==='Escape'){input.value=current;save();}};
+  input.onblur=save;
+}
+</script>
+</body>
+</html>

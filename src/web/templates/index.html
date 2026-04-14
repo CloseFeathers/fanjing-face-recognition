@@ -1,0 +1,665 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>心流元素 · 人脸识别系统</title>
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { font-size: 14px; }
+body {
+  font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif;
+  background: #0f0f1a;
+  color: #e0e0e0;
+  min-height: 100vh;
+}
+
+.header {
+  background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+  border-bottom: 1px solid #2a2a4a;
+  padding: 12px 24px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+.header h1 {
+  font-size: 1.3rem;
+  font-weight: 600;
+  background: linear-gradient(90deg, #4fc3f7, #00e5ff);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+.header .badge {
+  font-size: 0.75rem;
+  padding: 2px 10px;
+  border-radius: 12px;
+  font-weight: 500;
+}
+.badge.off { background: #333; color: #888; }
+.badge.on  { background: #00c853; color: #000; animation: pulse 1.5s infinite; }
+@keyframes pulse { 50% { opacity: .7; } }
+
+.main {
+  display: grid;
+  grid-template-columns: 1fr 400px;
+  gap: 16px;
+  padding: 16px;
+  max-width: 1700px;
+  margin: 0 auto;
+  height: calc(100vh - 56px);
+}
+@media (max-width: 1024px) {
+  .main { grid-template-columns: 1fr; height: auto; }
+}
+
+.video-panel {
+  background: #111;
+  border-radius: 12px;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  min-height: 400px;
+}
+.video-panel img { width: 100%; height: 100%; object-fit: contain; }
+.video-panel .placeholder {
+  color: #555; font-size: 1.1rem; text-align: center; line-height: 1.6;
+}
+.video-panel .placeholder .icon { font-size: 3rem; display: block; margin-bottom: 8px; }
+
+.sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  overflow-y: auto;
+  max-height: calc(100vh - 56px - 32px);
+}
+
+.card {
+  background: #1a1a2e;
+  border: 1px solid #2a2a4a;
+  border-radius: 10px;
+  padding: 14px;
+}
+.card h2 {
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: #4fc3f7;
+  margin-bottom: 10px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid #2a2a4a;
+}
+
+.mode-tabs {
+  display: flex; gap: 0; margin-bottom: 12px;
+  border-radius: 8px; overflow: hidden; border: 1px solid #333;
+}
+.mode-tabs button {
+  flex: 1; padding: 7px 0; border: none; background: #1e1e36;
+  color: #888; font-size: 0.85rem; cursor: pointer; transition: all .2s;
+}
+.mode-tabs button.active { background: #4fc3f7; color: #000; font-weight: 600; }
+
+.form-row {
+  display: flex; align-items: center; gap: 8px; margin-bottom: 8px;
+}
+.form-row label { min-width: 80px; font-size: 0.78rem; color: #aaa; }
+.form-row input, .form-row select {
+  flex: 1; padding: 5px 8px; background: #111; border: 1px solid #333;
+  border-radius: 6px; color: #e0e0e0; font-size: 0.78rem; outline: none;
+}
+.form-row input:focus, .form-row select:focus { border-color: #4fc3f7; }
+
+.section-label {
+  font-size: 0.68rem; text-transform: uppercase; letter-spacing: 1px;
+  color: #666; margin: 10px 0 5px 0; padding-top: 6px;
+  border-top: 1px solid #222;
+}
+
+.btn-row { display: flex; gap: 8px; margin-top: 12px; }
+.btn {
+  flex: 1; padding: 9px 0; border: none; border-radius: 8px;
+  font-size: 0.85rem; font-weight: 600; cursor: pointer; transition: all .2s;
+}
+.btn:active { transform: scale(0.97); }
+.btn-start { background: linear-gradient(135deg, #00c853, #00e676); color: #000; }
+.btn-start:hover { filter: brightness(1.15); }
+.btn-stop  { background: linear-gradient(135deg, #ff1744, #ff5252); color: #fff; }
+.btn-stop:hover  { filter: brightness(1.15); }
+.btn:disabled { opacity: 0.4; cursor: not-allowed; filter: none; }
+
+.checkbox-row {
+  display: flex; align-items: center; gap: 6px;
+  margin-bottom: 6px; font-size: 0.8rem; color: #aaa;
+}
+.checkbox-row input { accent-color: #4fc3f7; }
+
+.stats-grid {
+  display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px;
+}
+.stat-item {
+  background: #111; border-radius: 6px; padding: 8px 10px; text-align: center;
+}
+.stat-item .label { font-size: 0.65rem; color: #888; text-transform: uppercase; letter-spacing: .5px; }
+.stat-item .value {
+  font-size: 1.1rem; font-weight: 700; margin-top: 2px; font-variant-numeric: tabular-nums;
+}
+.stat-item .value.fps    { color: #00e676; }
+.stat-item .value.det    { color: #ffab40; }
+.stat-item .value.trk    { color: #e040fb; }
+.stat-item .value.faces  { color: #4fc3f7; }
+.stat-item .value.tracks { color: #ff6e40; }
+.stat-item .value.frame  { color: #ce93d8; }
+.stat-item .value.drop   { color: #ff5252; }
+.stat-item .value.align  { color: #76ff03; }
+.stat-item .value.emb    { color: #ffd740; }
+.stat-item .value.cache  { color: #00bcd4; }
+.stat-item .value.person { color: #e91e63; }
+
+.log-panel { flex: 1; min-height: 100px; max-height: 180px; }
+.log-box {
+  background: #0a0a14; border: 1px solid #222; border-radius: 8px;
+  padding: 6px; font-family: 'Consolas','Fira Code',monospace;
+  font-size: 0.68rem; line-height: 1.4; overflow-y: auto; max-height: 140px;
+  color: #8a8; word-break: break-all;
+}
+.log-box .log-line { border-bottom: 1px solid #1a1a24; padding: 2px 0; }
+.log-box .log-line:last-child { border-bottom: none; }
+
+.upload-area {
+  border: 2px dashed #333; border-radius: 8px; padding: 14px;
+  text-align: center; color: #666; font-size: 0.8rem; cursor: pointer;
+  transition: all .2s; margin-bottom: 8px;
+}
+.upload-area:hover { border-color: #4fc3f7; color: #4fc3f7; }
+
+.video-list { max-height: 80px; overflow-y: auto; margin-bottom: 6px; }
+.video-item {
+  padding: 5px 8px; background: #111; border-radius: 6px; margin-bottom: 3px;
+  cursor: pointer; font-size: 0.75rem; color: #aaa; transition: all .15s;
+}
+.video-item:hover { background: #222; color: #4fc3f7; }
+.video-item.selected { background: #1a2940; color: #4fc3f7; border: 1px solid #4fc3f7; }
+
+::-webkit-scrollbar { width: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #333; border-radius: 3px; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>心流元素 · 人脸识别系统</h1>
+  <span id="statusBadge" class="badge off">OFFLINE</span>
+  <span style="font-size:0.6rem;color:#555;margin-left:auto;">CreditGate</span>
+</div>
+
+<div class="main">
+
+  <div class="video-panel" id="videoPanel">
+    <div class="placeholder" id="placeholder">
+      <span class="icon">&#9655;</span>
+      选择模式并点击「启动」开始跟踪
+    </div>
+    <img id="videoFeed" src="" style="display:none;" alt="video feed">
+  </div>
+
+  <div class="sidebar">
+
+    <div class="card">
+      <h2>控制面板</h2>
+
+      <div class="mode-tabs">
+        <button id="tabCamera" class="active" onclick="switchMode('camera')">摄像头</button>
+        <button id="tabVideo" onclick="switchMode('video')">视频文件</button>
+      </div>
+
+      <div id="cameraOpts">
+        <div class="form-row">
+          <label>设备号</label>
+          <input type="number" id="camDevice" value="0" min="0" max="10">
+        </div>
+      </div>
+
+      <div id="videoOpts" style="display:none;">
+        <div class="upload-area" id="uploadArea" onclick="document.getElementById('fileInput').click()">
+          拖拽视频或点击上传
+          <input type="file" id="fileInput" accept="video/*" style="display:none;" onchange="handleUpload(this)">
+        </div>
+        <div class="video-list" id="videoList"></div>
+        <div class="form-row">
+          <label>文件路径</label>
+          <input type="text" id="videoPath" placeholder="uploads/demo.mp4">
+        </div>
+        <div class="checkbox-row">
+          <input type="checkbox" id="chkRealtime">
+          <label for="chkRealtime">按原始帧率播放</label>
+        </div>
+      </div>
+
+      <div class="section-label">检测参数</div>
+      <div class="form-row">
+        <label>检测尺寸</label>
+        <select id="detSize">
+          <option value="320">320</option>
+          <option value="480">480</option>
+          <option value="640" selected>640</option>
+        </select>
+      </div>
+
+      <div class="section-label">四阈值 (检测→跟踪→采样)</div>
+      <div class="param-row">
+        <label title="SCRFD 模型的检测阈值 (高分框的质量下限)">det_thresh</label>
+        <input type="number" id="detThresh" value="0.5" min="0.1" max="1.0" step="0.05">
+      </div>
+      <div class="param-row">
+        <label title="送入 tracker 的最低检测分 (放行弱框参与轨迹维护)">emit_min</label>
+        <input type="number" id="emitMin" value="0.15" min="0.05" max="0.5" step="0.05">
+      </div>
+      <div class="param-row">
+        <label title="允许创建新轨迹的高分阈值">new_high</label>
+        <input type="number" id="trackNewHigh" value="0.50" min="0.2" max="0.9" step="0.05">
+      </div>
+      <div class="param-row">
+        <label title="弱框更新已有/丢失轨迹的阈值">update_low</label>
+        <input type="number" id="trackUpdateLow" value="0.15" min="0.05" max="0.5" step="0.05">
+      </div>
+      <div class="param-row">
+        <label title="进入对齐/embedding 的最低检测分">sample_min</label>
+        <input type="number" id="sampleMinDet" value="0.60" min="0.3" max="0.9" step="0.05">
+      </div>
+
+      <div class="section-label">跟踪参数</div>
+      <div class="form-row">
+        <label>det_every_n</label>
+        <input type="number" id="detEveryN" value="1" min="1" max="30">
+      </div>
+      <div class="form-row">
+        <label>max_age</label>
+        <input type="number" id="maxAge" value="30" min="1" max="200">
+      </div>
+
+      <div class="section-label">对齐 + 质量采样</div>
+      <div class="checkbox-row">
+        <input type="checkbox" id="chkAlign" checked>
+        <label for="chkAlign">启用人脸对齐采样</label>
+      </div>
+      <div class="form-row">
+        <label>min_det</label>
+        <input type="number" id="minQualDet" value="0.60" min="0.1" max="1.0" step="0.05">
+      </div>
+      <div class="form-row">
+        <label>min_blur</label>
+        <input type="number" id="minQualBlur" value="40" min="0" max="500" step="5">
+      </div>
+
+      <div class="section-label">Embedding + 人员匹配</div>
+      <div class="checkbox-row">
+        <input type="checkbox" id="chkEmbed" checked>
+        <label for="chkEmbed">启用人员匹配 (T#→P#)</label>
+      </div>
+      <div class="form-row">
+        <label>sim_thresh</label>
+        <input type="number" id="simThresh" value="0.4" min="0.1" max="0.9" step="0.05">
+      </div>
+      <div class="form-row">
+        <label>cooldown(ms)</label>
+        <input type="number" id="embCooldown" value="200" min="50" max="5000" step="50" title="同一 track embedding 最小间隔(ms)">
+      </div>
+
+      <div class="section-label">信用积分门控 (Credit Gate)</div>
+      <div class="checkbox-row">
+        <input type="checkbox" id="chkCredit" checked>
+        <label for="chkCredit">启用信用积分制</label>
+      </div>
+      <div class="param-row">
+        <label>增分</label>
+        <input type="number" id="creditIncrement" value="1.0" min="0.1" max="5" step="0.1" title="quality 通过时加分">
+        <label>扣分</label>
+        <input type="number" id="creditDecrement" value="0.5" min="0.1" max="5" step="0.1" title="quality 失败时扣分">
+      </div>
+      <div class="param-row">
+        <label>门槛</label>
+        <input type="number" id="creditThreshold" value="3.0" min="1" max="20" step="0.5" title="允许 embedding 的最低信用分">
+        <label>上限</label>
+        <input type="number" id="creditMax" value="10.0" min="3" max="50" step="1" title="信用分上限">
+      </div>
+
+      <div class="section-label">三态身份 + 候选池 (M5)</div>
+      <div class="checkbox-row">
+        <input type="checkbox" id="chkM5" checked>
+        <label for="chkM5">启用候选池 (C池)</label>
+      </div>
+
+      <div class="section-label">说话检测</div>
+      <div class="checkbox-row">
+        <input type="checkbox" id="chkSpeaking" checked>
+        <label for="chkSpeaking">启用说话检测 (SPK/OCC)</label>
+      </div>
+
+      <div class="btn-row">
+        <button class="btn btn-start" id="btnStart" onclick="startPipeline()">启动</button>
+        <button class="btn btn-stop"  id="btnStop"  onclick="stopPipeline()" disabled>停止</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>实时统计</h2>
+      <div class="stats-grid">
+        <div class="stat-item">
+          <div class="label">FPS</div>
+          <div class="value fps" id="sFps">--</div>
+        </div>
+        <div class="stat-item">
+          <div class="label">total(ms)</div>
+          <div class="value det" id="sTotal">--</div>
+        </div>
+        <div class="stat-item">
+          <div class="label">det(ms)</div>
+          <div class="value det" id="sDet">--</div>
+        </div>
+        <div class="stat-item">
+          <div class="label">trk(ms)</div>
+          <div class="value trk" id="sTrk">--</div>
+        </div>
+        <div class="stat-item">
+          <div class="label">align(ms)</div>
+          <div class="value align" id="sAlign">--</div>
+        </div>
+        <div class="stat-item">
+          <div class="label">emb(ms)</div>
+          <div class="value emb" id="sEmb">--</div>
+        </div>
+        <div class="stat-item">
+          <div class="label">人脸数</div>
+          <div class="value faces" id="sFaces">--</div>
+        </div>
+        <div class="stat-item">
+          <div class="label">轨迹数</div>
+          <div class="value tracks" id="sTracks">--</div>
+        </div>
+        <div class="stat-item">
+          <div class="label">人员(P#)</div>
+          <div class="value person" id="sPersons">--</div>
+        </div>
+        <div class="stat-item">
+          <div class="label">缓存命中</div>
+          <div class="value cache" id="sCacheHit">--</div>
+        </div>
+        <div class="stat-item">
+          <div class="label">emb提取</div>
+          <div class="value emb" id="sEmbExtracted">--</div>
+        </div>
+        <div class="stat-item">
+          <div class="label">冷却跳过</div>
+          <div class="value" id="sCooldownSkip" style="color:#9e9e9e;">--</div>
+        </div>
+        <div class="stat-item">
+          <div class="label">帧号</div>
+          <div class="value frame" id="sFrame">--</div>
+        </div>
+        <div class="stat-item">
+          <div class="label">丢帧</div>
+          <div class="value drop" id="sDrop">--</div>
+        </div>
+        <div class="stat-item">
+          <div class="label">采样数</div>
+          <div class="value align" id="sAlignSaved">--</div>
+        </div>
+        <div class="stat-item">
+          <div class="label">KS</div>
+          <div class="value" id="sKnown" style="color:#00e676;">--</div>
+        </div>
+        <div class="stat-item">
+          <div class="label">AMB</div>
+          <div class="value" id="sUnkBand" style="color:#ffab40;">--</div>
+        </div>
+        <div class="stat-item">
+          <div class="label">US</div>
+          <div class="value" id="sUnkStrong" style="color:#ff5252;">--</div>
+        </div>
+        <div class="stat-item">
+          <div class="label">已注册</div>
+          <div class="value" id="sRegistered" style="color:#00bcd4;">--</div>
+        </div>
+        <div class="stat-item">
+          <div class="label">候选数</div>
+          <div class="value" id="sCandidates" style="color:#e040fb;">--</div>
+        </div>
+        <div class="stat-item">
+          <div class="label">Ready</div>
+          <div class="value" id="sReady" style="color:#76ff03;">--</div>
+        </div>
+        <div class="stat-item">
+          <div class="label">信用达标</div>
+          <div class="value" id="sCreditAbove" style="color:#00e676;">--</div>
+        </div>
+        <div class="stat-item">
+          <div class="label">弱框维持</div>
+          <div class="value" id="sWeakUpdate" style="color:#ffab40;">--</div>
+        </div>
+        <div class="stat-item">
+          <div class="label">高分框</div>
+          <div class="value" id="sHighDet" style="color:#4fc3f7;">--</div>
+        </div>
+        <div class="stat-item">
+          <div class="label">弱框数</div>
+          <div class="value" id="sLowDet" style="color:#9e9e9e;">--</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card log-panel">
+      <h2>跟踪日志</h2>
+      <div class="log-box" id="logBox">
+        <div style="color:#555;">等待启动...</div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+let currentMode = 'camera';
+let statsTimer = null;
+let isRunning = false;
+
+function switchMode(mode) {
+  currentMode = mode;
+  document.getElementById('tabCamera').classList.toggle('active', mode === 'camera');
+  document.getElementById('tabVideo').classList.toggle('active', mode === 'video');
+  document.getElementById('cameraOpts').style.display = mode === 'camera' ? '' : 'none';
+  document.getElementById('videoOpts').style.display = mode === 'video' ? '' : 'none';
+  if (mode === 'video') loadVideoList();
+}
+
+const _API_KEY = {{ api_key | tojson }};
+function apiFetch(url, opts={}) {
+  if(!opts.headers) opts.headers={};
+  if(typeof opts.headers.set === 'function') opts.headers.set('X-API-Key', _API_KEY);
+  else opts.headers['X-API-Key']=_API_KEY;
+  return fetch(url, opts);
+}
+
+async function startPipeline() {
+  const body = {
+    mode: currentMode,
+    det_thresh: parseFloat(document.getElementById('detThresh').value),
+    det_size: parseInt(document.getElementById('detSize').value),
+    det_every_n: parseInt(document.getElementById('detEveryN').value),
+    max_age: parseInt(document.getElementById('maxAge').value),
+    min_hits: 3,
+    match_iou_threshold: 0.3,
+    detector_emit_min_det: parseFloat(document.getElementById('emitMin').value),
+    track_new_high_thres: parseFloat(document.getElementById('trackNewHigh').value),
+    track_update_low_thres: parseFloat(document.getElementById('trackUpdateLow').value),
+    sample_min_det: parseFloat(document.getElementById('sampleMinDet').value),
+    align_enabled: document.getElementById('chkAlign').checked,
+    min_quality_det: parseFloat(document.getElementById('minQualDet').value),
+    min_quality_area: 900,
+    min_quality_blur: parseFloat(document.getElementById('minQualBlur').value),
+    max_samples: 10,
+    embed_enabled: document.getElementById('chkEmbed').checked,
+    similarity_threshold: parseFloat(document.getElementById('simThresh').value),
+    margin_threshold: 0.1,
+    min_template_samples: 3,
+    embed_cooldown_ms: parseFloat(document.getElementById('embCooldown').value),
+    credit_enabled: document.getElementById('chkCredit').checked,
+    credit_increment: parseFloat(document.getElementById('creditIncrement').value),
+    credit_decrement: parseFloat(document.getElementById('creditDecrement').value),
+    credit_threshold: parseFloat(document.getElementById('creditThreshold').value),
+    credit_max: parseFloat(document.getElementById('creditMax').value),
+    speaking_enabled: document.getElementById('chkSpeaking').checked,
+    m5_enabled: document.getElementById('chkM5').checked,
+    m5_known_threshold: 0.55,
+    m5_band_threshold: 0.35,
+    m5_margin_threshold: 0.10,
+  };
+  if (currentMode === 'camera') {
+    body.device = parseInt(document.getElementById('camDevice').value);
+  } else {
+    body.path = document.getElementById('videoPath').value;
+    body.realtime = document.getElementById('chkRealtime').checked;
+  }
+
+  document.getElementById('btnStart').disabled = true;
+  try {
+    const res = await apiFetch('/api/start', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(body),
+    });
+    const data = await res.json();
+    if (!data.ok) { alert('启动失败: ' + data.error); document.getElementById('btnStart').disabled = false; return; }
+
+    isRunning = true;
+    document.getElementById('btnStop').disabled = false;
+    document.getElementById('statusBadge').className = 'badge on';
+    document.getElementById('statusBadge').textContent = 'LIVE';
+
+    const img = document.getElementById('videoFeed');
+    img.src = '/video_feed?ts={{ stream_ts }}&sig={{ stream_sig }}';
+    img.style.display = '';
+    document.getElementById('placeholder').style.display = 'none';
+
+    if (statsTimer) clearInterval(statsTimer);
+    statsTimer = setInterval(pollStats, 400);
+  } catch (e) {
+    alert('请求失败: ' + e.message);
+    document.getElementById('btnStart').disabled = false;
+  }
+}
+
+async function stopPipeline() {
+  await apiFetch('/api/stop', {method: 'POST'});
+  onStopped();
+}
+
+function onStopped() {
+  isRunning = false;
+  document.getElementById('btnStart').disabled = false;
+  document.getElementById('btnStop').disabled = true;
+  document.getElementById('statusBadge').className = 'badge off';
+  document.getElementById('statusBadge').textContent = 'OFFLINE';
+  if (statsTimer) { clearInterval(statsTimer); statsTimer = null; }
+}
+
+async function pollStats() {
+  try {
+    const res = await apiFetch('/api/stats');
+    const s = await res.json();
+
+    document.getElementById('sFps').textContent = s.fps.toFixed(1);
+    document.getElementById('sTotal').textContent = (s.total_ms || 0).toFixed(0);
+    document.getElementById('sDet').textContent = (s.det_ms || 0).toFixed(0);
+    document.getElementById('sTrk').textContent = (s.trk_ms || 0).toFixed(0);
+    document.getElementById('sAlign').textContent = (s.align_ms || 0).toFixed(0);
+    document.getElementById('sEmb').textContent = (s.emb_ms || 0).toFixed(0);
+    document.getElementById('sFaces').textContent = s.num_faces || 0;
+    document.getElementById('sTracks').textContent = s.num_tracks || 0;
+    document.getElementById('sPersons').textContent = s.num_persons || 0;
+    document.getElementById('sCacheHit').textContent = s.emb_cache_hit || 0;
+    document.getElementById('sEmbExtracted').textContent = s.embed_extracted || 0;
+    document.getElementById('sCooldownSkip').textContent = s.emb_cooldown_skip || 0;
+    document.getElementById('sFrame').textContent = s.frame_id || 0;
+    document.getElementById('sDrop').textContent = s.dropped_frames || 0;
+    document.getElementById('sAlignSaved').textContent = s.align_saved || 0;
+
+    document.getElementById('sKnown').textContent = s.m5_known_strong_count || 0;
+    document.getElementById('sUnkBand').textContent = s.m5_ambiguous_count || 0;
+    document.getElementById('sUnkStrong').textContent = s.m5_unknown_strong_count || 0;
+    document.getElementById('sRegistered').textContent = s.m5_registered_count || 0;
+    document.getElementById('sCandidates').textContent = s.m5_candidate_count || 0;
+    document.getElementById('sReady').textContent = s.m5_ready_candidate_count || 0;
+
+    document.getElementById('sCreditAbove').textContent = s.credit_above_threshold || 0;
+    document.getElementById('sWeakUpdate').textContent = s.weak_used_update || 0;
+    document.getElementById('sHighDet').textContent = s.det_above_high || 0;
+    document.getElementById('sLowDet').textContent = s.det_between_emit_and_high || 0;
+
+    if (!s.running && isRunning) onStopped();
+
+    const logRes = await apiFetch('/api/log?n=20');
+    const logs = await logRes.json();
+    const box = document.getElementById('logBox');
+    if (logs.length > 0) {
+      box.innerHTML = logs.slice(-20).reverse().map(l => {
+        const nt = l.num_tracks || 0;
+        const dd = l.did_detect !== undefined ? l.did_detect : true;
+        return '<div class="log-line">' +
+          '<span style="color:#666">f' + l.frame_id + '</span> ' +
+          '<span style="color:#ff6e40">' + nt + 'trk</span> ' +
+          '<span style="color:#4fc3f7">' + (dd ? 'DET' : 'PRD') + '</span>' +
+          '</div>';
+      }).join('');
+    }
+  } catch (e) {}
+}
+
+async function handleUpload(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const fd = new FormData();
+  fd.append('file', file);
+  const res = await apiFetch('/api/upload_video', {method: 'POST', body: fd});
+  const data = await res.json();
+  if (data.ok) {
+    document.getElementById('videoPath').value = data.path;
+    loadVideoList();
+  }
+  input.value = '';
+}
+
+async function loadVideoList() {
+  try {
+    const res = await apiFetch('/api/videos');
+    const files = await res.json();
+    const box = document.getElementById('videoList');
+    box.innerHTML = '';
+    if (files.length === 0) return;
+    files.forEach(f => {
+      const div = document.createElement('div');
+      div.className = 'video-item';
+      div.textContent = f;
+      div.addEventListener('click', () => selectVideo(f));
+      box.appendChild(div);
+    });
+  } catch (e) {}
+}
+
+function selectVideo(name) {
+  document.getElementById('videoPath').value = 'uploads/' + name;
+  document.querySelectorAll('.video-item').forEach(el => {
+    el.classList.toggle('selected', el.textContent.trim() === name);
+  });
+}
+
+loadVideoList();
+</script>
+</body>
+</html>
