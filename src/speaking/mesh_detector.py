@@ -127,7 +127,21 @@ class MeshDetector:
         )
 
     def close(self):
-        self._landmarker.close()
+        """释放 MediaPipe 资源。"""
+        if hasattr(self, "_landmarker") and self._landmarker is not None:
+            self._landmarker.close()
+            self._landmarker = None
+
+    def __del__(self):
+        """析构时确保资源释放。"""
+        self.close()
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.close()
+        return False
 
     # ------------------------------------------------------------------
 

@@ -64,9 +64,13 @@ def require_api_key(f):
 # ======================================================================
 # 视频流签名与并发限制
 # ======================================================================
+STREAM_SIGNATURE_EXPIRE_SEC = 300  # 签名有效期（秒）
+STREAM_SIGNATURE_LENGTH = 16      # 签名截取长度
+MAX_CONCURRENT_STREAMS = 3        # 最大并发视频流数
+
 _stream_lock = threading.Lock()
 _active_streams = 0
-_max_streams = 3
+_max_streams = MAX_CONCURRENT_STREAMS
 
 
 def _verify_stream_signature() -> bool:
@@ -76,9 +80,11 @@ def _verify_stream_signature() -> bool:
         ts_int = int(ts)
     except (ValueError, TypeError):
         return False
-    if abs(time.time() - ts_int) > 300:
+    if abs(time.time() - ts_int) > STREAM_SIGNATURE_EXPIRE_SEC:
         return False
-    expected = hmac.new(API_KEY.encode(), ts.encode(), "sha256").hexdigest()[:16]
+    expected = hmac.new(
+        API_KEY.encode(), ts.encode(), "sha256"
+    ).hexdigest()[:STREAM_SIGNATURE_LENGTH]
     return hmac.compare_digest(sig, expected)
 
 
