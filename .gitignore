@@ -19,6 +19,9 @@ models/speaking/*.pkl
 output/
 uploads/
 
+# API Key (auto-generated, keep secret)
+.api_key
+
 # Training data
 data/recordings/
 

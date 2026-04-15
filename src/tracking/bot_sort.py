@@ -71,7 +71,6 @@ class BoTSORTTracker:
         self.stats_above_high: int = 0
         self.stats_between_emit_and_high: int = 0
         self.stats_weak_used_update: int = 0
-        self.stats_weak_used_new: int = 0
 
     def reset(self) -> None:
         self.tracked_stracks.clear()
@@ -82,7 +81,6 @@ class BoTSORTTracker:
         self.stats_above_high = 0
         self.stats_between_emit_and_high = 0
         self.stats_weak_used_update = 0
-        self.stats_weak_used_new = 0
         STrack.reset_id()
 
     def get_det_stats(self) -> dict:
@@ -92,7 +90,6 @@ class BoTSORTTracker:
             "det_above_high": self.stats_above_high,
             "det_between_emit_and_high": self.stats_between_emit_and_high,
             "weak_used_update": self.stats_weak_used_update,
-            "weak_used_new": self.stats_weak_used_new,
         }
 
     # ==================================================================

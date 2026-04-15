@@ -1825,7 +1825,7 @@ def api_track_status(track_id: int):
         "age": strack.age,
         "embed_count": ts.embed_count if ts else 0,
         "person_id": person_id,
-        "similarity": round(similarity, 4) if similarity else None,
+        "similarity": round(similarity, 4) if similarity is not None else None,
     })
 
 

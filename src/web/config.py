@@ -48,7 +48,30 @@ def _validate_model_path(path_str: str, allowed_ext: str = ".onnx") -> Path:
 # ======================================================================
 # API Key 认证
 # ======================================================================
-API_KEY = os.environ.get("FACE_API_KEY", secrets.token_urlsafe(32))
+def _get_or_create_api_key() -> str:
+    """获取 API Key：优先环境变量，其次持久化文件，最后生成新 Key"""
+    # 1. 优先使用环境变量
+    if env_key := os.environ.get("FACE_API_KEY"):
+        return env_key
+
+    # 2. 尝试从文件读取（项目根目录的 .api_key 文件）
+    key_file = Path(__file__).parent.parent.parent / ".api_key"
+    if key_file.exists():
+        stored_key = key_file.read_text().strip()
+        if stored_key:
+            return stored_key
+
+    # 3. 首次运行，生成并保存
+    new_key = secrets.token_urlsafe(32)
+    try:
+        key_file.write_text(new_key)
+        logger.info(f"已生成 API Key 并保存到 {key_file}")
+    except OSError as e:
+        logger.warning(f"无法保存 API Key 到文件: {e}，使用临时 Key")
+    return new_key
+
+
+API_KEY = _get_or_create_api_key()
 
 
 def require_api_key(f):
