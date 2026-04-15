@@ -1,4 +1,4 @@
-"""配置 dataclass、常量与安全工具函数。"""
+"""Configuration dataclasses, constants, and security utility functions."""
 
 from __future__ import annotations
 
@@ -21,7 +21,7 @@ from flask import jsonify, request
 logger = logging.getLogger(__name__)
 
 # ======================================================================
-# 路径约束
+# Path Constraints
 # ======================================================================
 MODELS_DIR = Path("models").resolve()
 UPLOAD_DIR = Path("uploads")
@@ -39,37 +39,37 @@ REGISTERED_DB_DIR = os.path.join(OUTPUT_DIR, "registered_db")
 def _validate_model_path(path_str: str, allowed_ext: str = ".onnx") -> Path:
     p = Path(path_str).resolve()
     if not p.is_relative_to(MODELS_DIR):
-        raise ValueError("模型路径不在允许的目录中")
+        raise ValueError("Model path is not in the allowed directory")
     if p.suffix.lower() != allowed_ext:
-        raise ValueError(f"模型文件必须是 {allowed_ext} 格式")
+        raise ValueError(f"Model file must be in {allowed_ext} format")
     if not p.exists():
-        raise FileNotFoundError("指定的模型文件不存在")
+        raise FileNotFoundError("Specified model file does not exist")
     return p
 
 
 # ======================================================================
-# API Key 认证
+# API Key Authentication
 # ======================================================================
 def _get_or_create_api_key() -> str:
-    """获取 API Key：优先环境变量，其次持久化文件，最后生成新 Key"""
-    # 1. 优先使用环境变量
+    """Get API Key: prioritize env var, then persistent file, finally generate new key."""
+    # 1. Prioritize environment variable
     if env_key := os.environ.get("FACE_API_KEY"):
         return env_key
 
-    # 2. 尝试从文件读取（项目根目录的 .api_key 文件）
+    # 2. Try to read from file (project root .api_key file)
     key_file = Path(__file__).parent.parent.parent / ".api_key"
     if key_file.exists():
         stored_key = key_file.read_text().strip()
         if stored_key:
             return stored_key
 
-    # 3. 首次运行，生成并保存
+    # 3. First run, generate and save
     new_key = secrets.token_urlsafe(32)
     try:
         key_file.write_text(new_key)
-        logger.info(f"已生成 API Key 并保存到 {key_file}")
+        logger.info(f"Generated API Key and saved to {key_file}")
     except OSError as e:
-        logger.warning(f"无法保存 API Key 到文件: {e}，使用临时 Key")
+        logger.warning(f"Cannot save API Key to file: {e}, using temporary key")
     return new_key
 
 
@@ -77,7 +77,7 @@ API_KEY = _get_or_create_api_key()
 
 
 def require_api_key(f: F) -> F:
-    """API Key 认证装饰器。"""
+    """API Key authentication decorator."""
     @functools.wraps(f)
     def decorated(*args: Any, **kwargs: Any) -> Any:
         key = request.headers.get("X-API-Key") or request.args.get("api_key")
@@ -88,11 +88,11 @@ def require_api_key(f: F) -> F:
 
 
 # ======================================================================
-# 视频流签名与并发限制
+# Video Stream Signing and Concurrency Limits
 # ======================================================================
-STREAM_SIGNATURE_EXPIRE_SEC = 300  # 签名有效期（秒）
-STREAM_SIGNATURE_LENGTH = 16      # 签名截取长度
-MAX_CONCURRENT_STREAMS = 3        # 最大并发视频流数
+STREAM_SIGNATURE_EXPIRE_SEC = 300  # Signature validity period (seconds)
+STREAM_SIGNATURE_LENGTH = 16      # Signature truncation length
+MAX_CONCURRENT_STREAMS = 3        # Maximum concurrent video streams
 
 _stream_lock = threading.Lock()
 _active_streams = 0
@@ -115,11 +115,11 @@ def _verify_stream_signature() -> bool:
 
 
 # ======================================================================
-# 业务配置 dataclass
+# Business Configuration Dataclasses
 # ======================================================================
 @dataclass
 class CreditGateConfig:
-    """Credit Gate: 用信用积分控制 track 是否可进入 embedding。"""
+    """Credit Gate: Control track embedding eligibility via credit score."""
     enabled: bool = True
     credit_increment: float = 1.0
     credit_decrement: float = 0.5
@@ -129,7 +129,7 @@ class CreditGateConfig:
 
 @dataclass
 class Module5Config:
-    """Module 5: Session 内身份状态机 + 自动注册。"""
+    """Module 5: Session identity state machine + auto-registration."""
     enabled: bool = False
     known_threshold: float = 0.55
     band_threshold: float = 0.35
@@ -150,7 +150,7 @@ class EmbedReason:
 
 @dataclass
 class TrackEmbedState:
-    """Per-track embedding 状态"""
+    """Per-track embedding state."""
     last_embed_time: float = 0.0
     last_embed_frame: int = 0
     cached_person_id: Optional[int] = None
