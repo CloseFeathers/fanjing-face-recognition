@@ -1,9 +1,9 @@
 """
-说话检测模型训练 pipeline。
+Speaking detection model training pipeline.
 
-流程: 加载录制数据 → 标签对齐 → 特征工程 → 训练 LR/XGBoost → 评估报告
+Pipeline: Load recorded data → Label alignment → Feature engineering → Train LR/XGBoost → Evaluation report
 
-用法: python train_speaking_model.py
+Usage: python train_speaking_model.py
 """
 
 import json

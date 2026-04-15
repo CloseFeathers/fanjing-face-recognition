@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 """
-Module 2+3+4 验收入口 —— Tracking + Alignment + Embedding 管线。
+Module 2+3+4 Acceptance Entry — Tracking + Alignment + Embedding pipeline.
 
-用法:
+Usage:
   python run_tracking.py --camera 0
   python run_tracking.py --video path/to/video.mp4 --realtime --log
   python run_tracking.py --camera 0 --det-every-n 3 --log
   python run_tracking.py --camera 0 --align --log
-  python run_tracking.py --camera 0 --align --embed --log  # 启用 embedding + person matching
+  python run_tracking.py --camera 0 --align --embed --log  # Enable embedding + person matching
 """
 
 from __future__ import annotations
@@ -42,7 +42,7 @@ from src.alignment.aligner import FaceAligner
 from src.alignment.quality import QualityGate, QualityConfig
 from src.alignment.track_sampler import TrackSampler
 
-# Embedding 相关 (可选导入，模型可能未下载)
+# Embedding related (optional import, model may not be downloaded)
 try:
     from src.embedding import (
         ArcFaceEmbedder,
@@ -53,18 +53,18 @@ try:
     EMBEDDING_AVAILABLE = True
 except ImportError as e:
     EMBEDDING_AVAILABLE = False
-    print(f"[Warning] Embedding 模块不可用: {e}")
+    print(f"[Warning] Embedding module not available: {e}")
 
 WINDOW_NAME = "Tracking Preview"
 
 # ======================================================================
-# 全局状态 (用于 embedding pipeline)
+# Global State (for embedding pipeline)
 # ======================================================================
 
-# track_id -> person_id 映射 (用于显示)
+# track_id -> person_id mapping (for display)
 _track_to_person: Dict[int, int] = {}
 
-# track_id -> 最新相似度 (用于显示)
+# track_id -> latest similarity (for display)
 _track_similarities: Dict[int, float] = {}
 
 
@@ -121,10 +121,10 @@ class FPSCounter:
 
 
 # ======================================================================
-# 对齐 + 采样 + Embedding 步骤
+# Alignment + Sampling + Embedding Steps
 # ======================================================================
 
-# 最近一次对齐成功的人脸 (用于 debug 预览窗口)
+# Last successfully aligned face (for debug preview window)
 _last_aligned_face = None
 
 
@@ -140,15 +140,15 @@ def alignment_step(
     person_registry=None,
     emb_logger=None,
 ):
-    """在 tracker.step() 之后执行对齐、质量采样、embedding 提取。
+    """Execute alignment, quality sampling, embedding extraction after tracker.step().
 
-    流程:
-    1. warpAffine 对齐
-    2. 在对齐图上评估质量
-    3. 通过则保存人脸图像
-    4. 如果启用 embedding: 提取 embedding → 聚合 track template → person matching
+    Pipeline:
+    1. warpAffine alignment
+    2. Evaluate quality on aligned image
+    3. Save face image if passed
+    4. If embedding enabled: extract embedding → aggregate track template → person matching
 
-    只处理检测帧中 confirmed + 有 kps5 的 track。
+    Only processes confirmed tracks with kps5 in detection frames.
     """
     global _last_aligned_face, _track_to_person, _track_similarities
 
@@ -164,23 +164,23 @@ def alignment_step(
         if strack.kps5 is None or strack.det_score is None:
             continue
 
-        # 1. 先做仿射对齐 (warpAffine)
+        # 1. Perform affine alignment (warpAffine)
         aligned = aligner.align(frame_image, strack.kps5)
         if aligned is None:
             continue
 
         evaluated += 1
 
-        # 更新 debug 预览
+        # Update debug preview
         _last_aligned_face = aligned.copy()
 
-        # 2. 在对齐后的 112x112 图上评估质量
+        # 2. Evaluate quality on aligned 112x112 image
         bbox = strack.bbox_xyxy_clipped(ft.width, ft.height)
         quality = qgate.evaluate(
             aligned, bbox, strack.det_score, strack.kps5,
         )
 
-        # 3. 通过则保存人脸图像
+        # 3. Save face image if passed
         info = sampler.try_add(
             track_id=strack.track_id,
             frame_id=ft.frame_id,
@@ -193,11 +193,11 @@ def alignment_step(
 
         sampled += 1
 
-        # 4. Embedding 流程 (如果启用)
+        # 4. Embedding pipeline (if enabled)
         if embedder is not None and quality.passed:
             embedding = embedder.extract(aligned)
             if embedding is not None:
-                # 4a. 记录 embedding
+                # 4a. Log embedding
                 if emb_logger is not None:
                     emb_logger.log(
                         track_id=strack.track_id,
@@ -208,7 +208,7 @@ def alignment_step(
                         face_image_path=info.save_path,
                     )
 
-                # 4b. 添加到 track template manager
+                # 4b. Add to track template manager
                 if template_mgr is not None:
                     template = template_mgr.add_sample(
                         track_id=strack.track_id,
@@ -219,11 +219,11 @@ def alignment_step(
                         image_path=info.save_path,
                     )
 
-                    # 4c. 如果生成了 template，执行 person matching
+                    # 4c. If template generated, execute person matching
                     if template is not None and person_registry is not None:
                         assignment = person_registry.assign(template)
 
-                        # 更新全局映射 (供显示用)
+                        # Update global mapping (for display)
                         _track_to_person[strack.track_id] = assignment.person_id
                         _track_similarities[strack.track_id] = assignment.top1_similarity
 
@@ -231,7 +231,7 @@ def alignment_step(
 
 
 # ======================================================================
-# 摄像头
+# Camera
 # ======================================================================
 
 def run_camera(
@@ -308,7 +308,7 @@ def run_camera(
 
 
 # ======================================================================
-# 视频
+# Video
 # ======================================================================
 
 def run_video(

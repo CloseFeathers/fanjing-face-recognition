@@ -1,24 +1,24 @@
 """
-说话检测数据录制工具 v2 — 按场景独立录制
+Speaking detection data recording tool v2 — Record scenarios independently.
 
-每个场景单独一个视频文件, 可以随时重录任何场景。
+Each scenario in a separate video file, can re-record any scenario anytime.
 
-操作:
-  启动后显示场景菜单, 输入编号录制单个场景, 输入 'all' 录制全部。
-  录制中:
-    空格键 按住 = 正在说话
-    空格键 松开 = 不在说话
-    Enter       = 提前结束当前场景
-    ESC         = 中止并询问是否保留
+Controls:
+  After start, shows scenario menu, enter number to record single scenario, 'all' for all.
+  During recording:
+    Space key held = Speaking
+    Space key released = Not speaking
+    Enter = End current scenario early
+    ESC = Abort and ask whether to keep
 
-输出目录: data/recordings/session_YYYYMMDD_HHMMSS/
+Output directory: data/recordings/session_YYYYMMDD_HHMMSS/
   01_pos_frontal_normal/
     video.mp4, mouth_roi.mp4, features.csv, events.jsonl
   02_pos_frontal_fast/
     ...
   metadata.json
 
-依赖: pip install keyboard Pillow
+Dependencies: pip install keyboard Pillow
 """
 
 import csv
@@ -55,115 +55,115 @@ from src.speaking.mesh_detector import (
 )
 
 # ======================================================================
-# 场景定义
+# Scenario Definitions
 # ======================================================================
 
 SCENARIOS = [
-    # 1-6: 正面说话 (已录)
-    {"id": "pos_frontal_normal", "name": "正脸 · 正常说话", "dur": 60,
+    # 1-6: Frontal speaking (recorded)
+    {"id": "pos_frontal_normal", "name": "Frontal · Normal speaking", "dur": 60,
      "cat": "SPEAKING",
-     "inst": "请面对镜头自然地连续说话。\n全程按住空格键。"},
-    {"id": "pos_frontal_fast", "name": "正脸 · 快速说话", "dur": 30,
+     "inst": "Face the camera and speak naturally.\nHold space key throughout."},
+    {"id": "pos_frontal_fast", "name": "Frontal · Fast speaking", "dur": 30,
      "cat": "SPEAKING",
-     "inst": "请尽量快速地说话。\n全程按住空格。"},
-    {"id": "pos_frontal_slow", "name": "正脸 · 慢速说话", "dur": 30,
+     "inst": "Speak as fast as possible.\nHold space throughout."},
+    {"id": "pos_frontal_slow", "name": "Frontal · Slow speaking", "dur": 30,
      "cat": "SPEAKING",
-     "inst": "请放慢语速说话，一字一句清晰。\n全程按住空格。"},
-    {"id": "pos_frontal_pause", "name": "正脸 · 短句+停顿", "dur": 40,
+     "inst": "Speak slowly, enunciate clearly.\nHold space throughout."},
+    {"id": "pos_frontal_pause", "name": "Frontal · Short phrases+pauses", "dur": 40,
      "cat": "SPEAKING",
-     "inst": "请说短句，每句之间停顿1-2秒。\n★ 说话按空格，停顿松开。标注精度很重要！"},
-    {"id": "pos_frontal_subtle", "name": "正脸 · 低幅度说话", "dur": 30,
+     "inst": "Speak short phrases, pause 1-2s between.\n★ Press space when speaking, release when pausing. Annotation accuracy is important!"},
+    {"id": "pos_frontal_subtle", "name": "Frontal · Subtle speaking", "dur": 30,
      "cat": "SPEAKING",
-     "inst": "请不怎么张嘴地说话（含糊、小声）。\n全程按住空格。"},
-    {"id": "pos_frontal_smile", "name": "正脸 · 微笑说话", "dur": 30,
+     "inst": "Speak with minimal mouth movement (mumbling, quiet).\nHold space throughout."},
+    {"id": "pos_frontal_smile", "name": "Frontal · Smiling speech", "dur": 30,
      "cat": "SPEAKING",
-     "inst": "请保持微笑的状态说话。\n全程按住空格。"},
+     "inst": "Speak while smiling.\nHold space throughout."},
 
-    # 7-12: 侧面说话 (已录)
-    {"id": "pos_left15", "name": "左转15° · 说话", "dur": 30,
+    # 7-12: Side angle speaking (recorded)
+    {"id": "pos_left15", "name": "Turn left 15° · Speaking", "dur": 30,
      "cat": "SPEAKING",
-     "inst": "请向左转约15度，连续说话。\n全程按住空格。参考 yaw（-10~-20）。"},
-    {"id": "pos_right15", "name": "右转15° · 说话", "dur": 30,
+     "inst": "Turn ~15° left, speak continuously.\nHold space throughout. Reference yaw (-10~-20)."},
+    {"id": "pos_right15", "name": "Turn right 15° · Speaking", "dur": 30,
      "cat": "SPEAKING",
-     "inst": "请向右转约15度，连续说话。\n全程按住空格。参考 yaw（+10~+20）。"},
-    {"id": "pos_left30", "name": "左转30° · 说话", "dur": 30,
+     "inst": "Turn ~15° right, speak continuously.\nHold space throughout. Reference yaw (+10~+20)."},
+    {"id": "pos_left30", "name": "Turn left 30° · Speaking", "dur": 30,
      "cat": "SPEAKING",
-     "inst": "请向左转约30度，连续说话。\n全程按住空格。参考 yaw（-25~-35）。"},
-    {"id": "pos_right30", "name": "右转30° · 说话", "dur": 30,
+     "inst": "Turn ~30° left, speak continuously.\nHold space throughout. Reference yaw (-25~-35)."},
+    {"id": "pos_right30", "name": "Turn right 30° · Speaking", "dur": 30,
      "cat": "SPEAKING",
-     "inst": "请向右转约30度，连续说话。\n全程按住空格。参考 yaw（+25~+35）。"},
-    {"id": "pos_headmove", "name": "说话+自然摆头", "dur": 30,
+     "inst": "Turn ~30° right, speak continuously.\nHold space throughout. Reference yaw (+25~+35)."},
+    {"id": "pos_headmove", "name": "Speaking + natural head turn", "dur": 30,
      "cat": "SPEAKING",
-     "inst": "请一边说话一边自然地左右转头。\n全程按住空格。模拟正常交流。"},
-    {"id": "pos_headnod", "name": "说话+点头", "dur": 30,
+     "inst": "Speak while naturally turning head left/right.\nHold space throughout. Simulates normal conversation."},
+    {"id": "pos_headnod", "name": "Speaking + nodding", "dur": 30,
      "cat": "SPEAKING",
-     "inst": "请一边说话一边点头（上下）。\n全程按住空格。"},
+     "inst": "Speak while nodding (up/down).\nHold space throughout."},
 
-    # 13-18: 正面不说话 (已录)
-    {"id": "neg_still", "name": "正脸 · 闭嘴静止", "dur": 25,
+    # 13-18: Frontal not speaking (recorded)
+    {"id": "neg_still", "name": "Frontal · Closed mouth still", "dur": 25,
      "cat": "NOT_SPEAKING",
-     "inst": "请闭嘴保持静止，不要说话。\n【不要按空格键】"},
-    {"id": "neg_open_still", "name": "正脸 · 微张嘴静止", "dur": 20,
+     "inst": "Keep mouth closed and stay still, don't speak.\n[DO NOT press space key]"},
+    {"id": "neg_open_still", "name": "Frontal · Slightly open still", "dur": 20,
      "cat": "NOT_SPEAKING",
-     "inst": "请微微张开嘴，但不说话不动。\n【不要按空格键】★ Hard Negative"},
-    {"id": "neg_breathe", "name": "正脸 · 张嘴呼吸", "dur": 20,
+     "inst": "Keep mouth slightly open, don't speak or move.\n[DO NOT press space key] ★ Hard Negative"},
+    {"id": "neg_breathe", "name": "Frontal · Mouth breathing", "dur": 20,
      "cat": "NOT_SPEAKING",
-     "inst": "请张嘴呼吸，但不说话。\n【不要按空格键】"},
-    {"id": "neg_left20", "name": "左转20° · 静止", "dur": 15,
+     "inst": "Breathe with mouth open, don't speak.\n[DO NOT press space key]"},
+    {"id": "neg_left20", "name": "Turn left 20° · Still", "dur": 15,
      "cat": "NOT_SPEAKING",
-     "inst": "请向左转约20度，保持静止不说话。\n【不要按空格键】"},
-    {"id": "neg_right20", "name": "右转20° · 静止", "dur": 15,
+     "inst": "Turn ~20° left, stay still and don't speak.\n[DO NOT press space key]"},
+    {"id": "neg_right20", "name": "Turn right 20° · Still", "dur": 15,
      "cat": "NOT_SPEAKING",
-     "inst": "请向右转约20度，保持静止不说话。\n【不要按空格键】"},
-    {"id": "neg_smile", "name": "微笑 · 不说话", "dur": 15,
+     "inst": "Turn ~20° right, stay still and don't speak.\n[DO NOT press space key]"},
+    {"id": "neg_smile", "name": "Smiling · Not speaking", "dur": 15,
      "cat": "NOT_SPEAKING",
-     "inst": "请微笑，但不说话不出声。\n【不要按空格键】"},
+     "inst": "Smile but don't speak or make sounds.\n[DO NOT press space key]"},
 
-    # 19: 占位 (保持编号对齐)
-    {"id": "_skip_19", "name": "(已跳过)", "dur": 0,
+    # 19: Placeholder (keep numbering aligned)
+    {"id": "_skip_19", "name": "(Skipped)", "dur": 0,
      "cat": "SKIP", "inst": ""},
 
-    # 20-22: 不说话 (已录)
-    {"id": "neg_yawn", "name": "打哈欠", "dur": 15,
+    # 20-22: Not speaking (recorded)
+    {"id": "neg_yawn", "name": "Yawning", "dur": 15,
      "cat": "NOT_SPEAKING",
-     "inst": "请假装打哈欠几次。\n【不要按空格键】★ Hard Negative"},
-    {"id": "neg_chew", "name": "咀嚼 · 不说话", "dur": 20,
+     "inst": "Pretend to yawn a few times.\n[DO NOT press space key] ★ Hard Negative"},
+    {"id": "neg_chew", "name": "Chewing · Not speaking", "dur": 20,
      "cat": "NOT_SPEAKING",
-     "inst": "请做咀嚼动作，但不说话。\n【不要按空格键】★ Hard Negative"},
-    {"id": "neg_headmove", "name": "转头点头 · 不说话", "dur": 20,
+     "inst": "Make chewing motions, don't speak.\n[DO NOT press space key] ★ Hard Negative"},
+    {"id": "neg_headmove", "name": "Head turn/nod · Not speaking", "dur": 20,
      "cat": "NOT_SPEAKING",
-     "inst": "请自由转头、点头，但不说话。\n【不要按空格键】"},
+     "inst": "Freely turn and nod head, don't speak.\n[DO NOT press space key]"},
 
-    # === 23-30: 新增场景（侧面补充） ===
-    {"id": "pos_left45", "name": "左转45° · 说话", "dur": 30,
+    # === 23-30: Additional scenarios (side angle supplement) ===
+    {"id": "pos_left45", "name": "Turn left 45° · Speaking", "dur": 30,
      "cat": "SPEAKING",
-     "inst": "请向左转约45度（大幅侧转），连续说话。\n全程按住空格。参考 yaw（-40~-50）。"},
-    {"id": "pos_right45", "name": "右转45° · 说话", "dur": 30,
+     "inst": "Turn ~45° left (large turn), speak continuously.\nHold space throughout. Reference yaw (-40~-50)."},
+    {"id": "pos_right45", "name": "Turn right 45° · Speaking", "dur": 30,
      "cat": "SPEAKING",
-     "inst": "请向右转约45度（大幅侧转），连续说话。\n全程按住空格。参考 yaw（+40~+50）。"},
-    {"id": "neg_left15", "name": "左转15° · 静止", "dur": 15,
+     "inst": "Turn ~45° right (large turn), speak continuously.\nHold space throughout. Reference yaw (+40~+50)."},
+    {"id": "neg_left15", "name": "Turn left 15° · Still", "dur": 15,
      "cat": "NOT_SPEAKING",
-     "inst": "请向左转约15度，保持静止不说话。\n【不要按空格键】参考 yaw（-10~-20）。"},
-    {"id": "neg_right15", "name": "右转15° · 静止", "dur": 15,
+     "inst": "Turn ~15° left, stay still and don't speak.\n[DO NOT press space key] Reference yaw (-10~-20)."},
+    {"id": "neg_right15", "name": "Turn right 15° · Still", "dur": 15,
      "cat": "NOT_SPEAKING",
-     "inst": "请向右转约15度，保持静止不说话。\n【不要按空格键】参考 yaw（+10~+20）。"},
-    {"id": "neg_left30", "name": "左转30° · 静止", "dur": 15,
+     "inst": "Turn ~15° right, stay still and don't speak.\n[DO NOT press space key] Reference yaw (+10~+20)."},
+    {"id": "neg_left30", "name": "Turn left 30° · Still", "dur": 15,
      "cat": "NOT_SPEAKING",
-     "inst": "请向左转约30度，保持静止不说话。\n【不要按空格键】参考 yaw（-25~-35）。"},
-    {"id": "neg_right30", "name": "右转30° · 静止", "dur": 15,
+     "inst": "Turn ~30° left, stay still and don't speak.\n[DO NOT press space key] Reference yaw (-25~-35)."},
+    {"id": "neg_right30", "name": "Turn right 30° · Still", "dur": 15,
      "cat": "NOT_SPEAKING",
-     "inst": "请向右转约30度，保持静止不说话。\n【不要按空格键】参考 yaw（+25~+35）。"},
-    {"id": "neg_left40", "name": "左转40° · 静止", "dur": 15,
+     "inst": "Turn ~30° right, stay still and don't speak.\n[DO NOT press space key] Reference yaw (+25~+35)."},
+    {"id": "neg_left40", "name": "Turn left 40° · Still", "dur": 15,
      "cat": "NOT_SPEAKING",
-     "inst": "请向左转约40度，保持静止不说话。\n【不要按空格键】参考 yaw（-35~-45）。"},
-    {"id": "neg_right40", "name": "右转40° · 静止", "dur": 15,
+     "inst": "Turn ~40° left, stay still and don't speak.\n[DO NOT press space key] Reference yaw (-35~-45)."},
+    {"id": "neg_right40", "name": "Turn right 40° · Still", "dur": 15,
      "cat": "NOT_SPEAKING",
-     "inst": "请向右转约40度，保持静止不说话。\n【不要按空格键】参考 yaw（+35~+45）。"},
+     "inst": "Turn ~40° right, stay still and don't speak.\n[DO NOT press space key] Reference yaw (+35~+45)."},
 ]
 
 
 # ======================================================================
-# Chinese text
+# CJK Text Rendering
 # ======================================================================
 
 _font_cache: dict = {}
@@ -286,9 +286,9 @@ def record_scenario(sc_idx, sc, cap, landmarker, vsdlm, vsdlm_input_name,
         events_file.write(json.dumps(ev, ensure_ascii=False) + "\n")
 
     # ── 5-second countdown with instructions on screen ──
-    cat_labels = {"SPEAKING": "▶ 说话场景 — 说话时按住空格",
-                  "NOT_SPEAKING": "■ 静默场景 — 不要按空格",
-                  "IGNORE": "✕ 忽略场景", "MIXED": "◆ 混合场景 — 按需切换"}
+    cat_labels = {"SPEAKING": "▶ Speaking scenario — Hold space when speaking",
+                  "NOT_SPEAKING": "■ Silent scenario — Do not press space",
+                  "IGNORE": "✕ Ignore scenario", "MIXED": "◆ Mixed scenario — Switch as needed"}
     cat_colors = {"SPEAKING": (0, 255, 0), "NOT_SPEAKING": (200, 200, 200),
                   "IGNORE": (0, 140, 255), "MIXED": (0, 255, 255)}
 
@@ -300,16 +300,16 @@ def record_scenario(sc_idx, sc, cap, landmarker, vsdlm, vsdlm_input_name,
             cv2.rectangle(overlay, (0, 0), (frame_w, frame_h), (0, 0, 0), -1)
             cv2.addWeighted(overlay, 0.55, disp, 0.45, 0, disp)
             disp = draw_cn(disp,
-                           f"场景 {sc_idx+1}/{total_scenarios}: {sc_name}",
+                           f"Scenario {sc_idx+1}/{total_scenarios}: {sc_name}",
                            (20, 20), size=30, color=(255, 255, 0))
             disp = draw_cn(disp,
-                           f"{cat_labels.get(sc_cat, '')}    时长: {sc_dur}秒",
+                           f"{cat_labels.get(sc_cat, '')}    Duration: {sc_dur}s",
                            (20, 65), size=20,
                            color=cat_colors.get(sc_cat, (255, 255, 255)))
             y_inst = 110
             for il in inst_lines:
                 c = (255, 180, 80) if "★" in il else (255, 255, 255)
-                if "不要按空格" in il:
+                if "DO NOT press space" in il:
                     c = (100, 180, 255)
                 disp = draw_cn(disp, il, (30, y_inst), size=22, color=c)
                 y_inst += 32
@@ -494,14 +494,14 @@ def record_scenario(sc_idx, sc, cap, landmarker, vsdlm, vsdlm_input_name,
     events_file.close()
 
     if aborted:
-        ans = input(f"\n  场景 {sc_name} 被中止。保留数据？(y/n) [y]: ").strip().lower()
+        ans = input(f"\n  Scenario {sc_name} was aborted. Keep data? (y/n) [y]: ").strip().lower()
         if ans == "n":
             shutil.rmtree(sc_dir, ignore_errors=True)
-            print(f"  已删除: {sc_dir.name}")
+            print(f"  Deleted: {sc_dir.name}")
             return "aborted_deleted"
         return "aborted_kept"
 
-    print(f"  ✓ 场景 {sc_idx+1} 完成: {sc_name} ({frame_id} 帧)")
+    print(f"  ✓ Scenario {sc_idx+1} complete: {sc_name} ({frame_id} frames)")
     return "done"
 
 
@@ -514,7 +514,7 @@ def main():
     rec_root.mkdir(parents=True, exist_ok=True)
 
     print(f"\n{'=' * 60}")
-    print(f"  说话检测数据录制工具 v2")
+    print(f"  Speaking Detection Data Recording Tool v2")
     print(f"{'=' * 60}")
     print()
 
@@ -522,25 +522,25 @@ def main():
     name = ""
 
     # ── Show menu ──
-    print("  场景列表:")
+    print("  Scenario list:")
     for i, sc in enumerate(SCENARIOS):
         if sc["cat"] == "SKIP":
             continue
         cat_mark = {"SPEAKING": "▶", "NOT_SPEAKING": "■"}.get(sc["cat"], " ")
-        print(f"    {i + 1:2d}. {cat_mark} {sc['name']:20s}  ({sc['dur']}s)  [{sc['cat']}]")
+        print(f"    {i + 1:2d}. {cat_mark} {sc['name']:30s}  ({sc['dur']}s)  [{sc['cat']}]")
 
     total_dur = sum(s["dur"] for s in SCENARIOS)
-    print(f"\n  共 {len(SCENARIOS)} 个场景, 总时长 {total_dur}s ({total_dur / 60:.1f}分钟)")
+    print(f"\n  Total {len(SCENARIOS)} scenarios, total duration {total_dur}s ({total_dur / 60:.1f} minutes)")
     print()
-    print("  输入方式:")
-    print("    数字      → 录制单个场景 (如 '4')")
-    print("    范围      → 录制范围 (如 '7-12')")
-    print("    多个      → 逗号分隔 (如 '1,4,7')")
-    print("    all       → 录制全部")
-    print("    q         → 退出")
+    print("  Input format:")
+    print("    Number    → Record single scenario (e.g. '4')")
+    print("    Range     → Record range (e.g. '7-12')")
+    print("    Multiple  → Comma separated (e.g. '1,4,7')")
+    print("    all       → Record all")
+    print("    q         → Quit")
     print()
 
-    choice = input("  请选择要录制的场景: ").strip().lower()
+    choice = input("  Select scenarios to record: ").strip().lower()
     if choice == "q":
         return
 
@@ -557,26 +557,26 @@ def main():
                 else:
                     indices.append(int(part) - 1)
         except ValueError:
-            print("  输入格式错误。")
+            print("  Invalid input format.")
             return
 
     indices = [i for i in indices
                if 0 <= i < len(SCENARIOS) and SCENARIOS[i]["cat"] != "SKIP"]
     if not indices:
-        print("  没有有效的场景编号。")
+        print("  No valid scenario numbers.")
         return
 
-    print(f"\n  将录制 {len(indices)} 个场景:")
+    print(f"\n  Will record {len(indices)} scenarios:")
     for i in indices:
         print(f"    {i + 1}. {SCENARIOS[i]['name']}")
 
-    print(f"\n  输出目录: {out_dir}")
-    print(f"\n  操作: 空格=说话  Enter=提前结束  ESC=中止")
-    print(f"\n  按 Enter 开始...")
+    print(f"\n  Output directory: {out_dir}")
+    print(f"\n  Controls: Space=speaking  Enter=end early  ESC=abort")
+    print(f"\n  Press Enter to start...")
     input()
 
     # ── Load models ──
-    print("  正在加载模型...")
+    print("  Loading models...")
     base_options = mp_python.BaseOptions(
         model_asset_path="models/face_landmarker.task")
     options = mp_vision.FaceLandmarkerOptions(
@@ -596,14 +596,14 @@ def main():
 
     cap = cv2.VideoCapture(0)
     if not cap.isOpened():
-        print("  ERROR: 无法打开摄像头")
+        print("  ERROR: Cannot open camera")
         return
     ret, test_frame = cap.read()
     if not ret:
-        print("  ERROR: 无法读取摄像头")
+        print("  ERROR: Cannot read from camera")
         return
     frame_h, frame_w = test_frame.shape[:2]
-    print("  模型加载完成！\n")
+    print("  Models loaded!\n")
 
     # ── Record each selected scenario ──
     for idx in indices:
@@ -612,11 +612,11 @@ def main():
                                  vsdlm_input_name, out_dir, frame_w,
                                  frame_h, len(SCENARIOS))
         if result == "aborted_deleted":
-            ans = input("  继续录制下一个场景？(y/n) [y]: ").strip().lower()
+            ans = input("  Continue recording next scenario? (y/n) [y]: ").strip().lower()
             if ans == "n":
                 break
         elif result == "aborted_kept":
-            ans = input("  继续录制下一个场景？(y/n) [y]: ").strip().lower()
+            ans = input("  Continue recording next scenario? (y/n) [y]: ").strip().lower()
             if ans == "n":
                 break
 
@@ -628,15 +628,15 @@ def main():
     # ── Summary ──
 
     print(f"\n{'=' * 60}")
-    print(f"  录制完成！")
-    print(f"  输出目录: {out_dir}")
-    print(f"  已录场景:")
+    print(f"  Recording complete!")
+    print(f"  Output directory: {out_dir}")
+    print(f"  Recorded scenarios:")
     for d in sorted(out_dir.iterdir()):
         if d.is_dir():
             csv_p = d / "features.csv"
             if csv_p.exists():
                 lines = sum(1 for _ in open(csv_p, encoding="utf-8")) - 1
-                print(f"    {d.name}: {lines} 帧")
+                print(f"    {d.name}: {lines} frames")
     print(f"{'=' * 60}")
 
 

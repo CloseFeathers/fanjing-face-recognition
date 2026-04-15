@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 """
-心流元素人脸识别系统 —— 干净版 (v2)
+FlowElement Face Recognition System — Clean Version (v2)
 
-端口: 5001 (与旧版 5000 完全隔离)
+Port: 5001 (completely isolated from legacy 5000)
 
-用法:
+Usage:
   python run_web_v2.py                     # http://localhost:5001
-  python run_web_v2.py --port 8080         # 自定义端口
-  python run_web_v2.py --host 0.0.0.0      # 局域网访问
+  python run_web_v2.py --port 8080         # Custom port
+  python run_web_v2.py --host 0.0.0.0      # LAN access
 """
 
 from __future__ import annotations
@@ -44,12 +44,12 @@ def main():
     parser.add_argument("--model", default="models/det_10g.onnx")
     args = parser.parse_args()
 
-    print("[v2] 预加载检测模型...")
+    print("[v2] Pre-loading detection model...")
     ensure_detector(model_path=args.model)
 
     url = f"http://{args.host}:{args.port}"
-    print(f"[v2] 启动服务: {url}")
-    print("[v2] 按 Ctrl+C 停止")
+    print(f"[v2] Starting server: {url}")
+    print("[v2] Press Ctrl+C to stop")
 
     if not args.no_browser:
         threading.Timer(1.5, lambda: webbrowser.open(url)).start()

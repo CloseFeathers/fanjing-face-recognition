@@ -1,12 +1,12 @@
 """
-BiSeNet Face Parsing 遮挡检测 — 降频效果测试。
+BiSeNet Face Parsing occlusion detection — Frame skip effect test.
 
-模型输入固定 512×512，无法降分辨率。
-测试降频策略: 每 N 帧跑一次 BiSeNet，中间复用上次结果。
+Model input fixed at 512×512, cannot reduce resolution.
+Test frame skip strategy: Run BiSeNet every N frames, reuse last result in between.
 
-显示: 实际推理耗时、等效每帧耗时、lip_ratio、判定状态。
+Display: Actual inference time, effective per-frame time, lip_ratio, detection status.
 
-按 1/3/5/8 切换降频间隔, 按 q 退出
+Press 1/3/5/8 to switch frame skip interval, press q to quit
 """
 import time
 import cv2
