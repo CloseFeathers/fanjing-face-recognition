@@ -11,7 +11,9 @@ import threading
 import time
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional
+from typing import Any, Callable, Optional, TypeVar
+
+F = TypeVar("F", bound=Callable[..., Any])
 
 import numpy as np
 from flask import jsonify, request
@@ -51,14 +53,15 @@ def _validate_model_path(path_str: str, allowed_ext: str = ".onnx") -> Path:
 API_KEY = os.environ.get("FACE_API_KEY", secrets.token_urlsafe(32))
 
 
-def require_api_key(f):
+def require_api_key(f: F) -> F:
+    """API Key 认证装饰器。"""
     @functools.wraps(f)
-    def decorated(*args, **kwargs):
+    def decorated(*args: Any, **kwargs: Any) -> Any:
         key = request.headers.get("X-API-Key") or request.args.get("api_key")
         if not hmac.compare_digest(key or "", API_KEY):
             return jsonify({"ok": False, "error": "Unauthorized"}), 401
         return f(*args, **kwargs)
-    return decorated
+    return decorated  # type: ignore[return-value]
 
 
 # ======================================================================

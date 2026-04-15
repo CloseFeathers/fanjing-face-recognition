@@ -225,14 +225,28 @@ class SpeakingAnalyzer:
                           f"p={prob:.2f},lip={lip_ratio:.2f},yaw={yaw:.0f}",
                           timestamp_ms)
 
-    def remove_track(self, track_id: int):
+    def remove_track(self, track_id: int) -> None:
         self._tracks.pop(track_id, None)
 
-    def reset(self):
+    def reset(self) -> None:
         self._tracks.clear()
 
-    def close(self):
-        self._landmarker.close()
+    def close(self) -> None:
+        """释放 MediaPipe 资源。"""
+        if hasattr(self, "_landmarker") and self._landmarker is not None:
+            self._landmarker.close()
+            self._landmarker = None
+
+    def __del__(self) -> None:
+        """析构时确保资源释放。"""
+        self.close()
+
+    def __enter__(self) -> "SpeakingAnalyzer":
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb) -> bool:
+        self.close()
+        return False
 
     # ------------------------------------------------------------------
     # BiSeNet
