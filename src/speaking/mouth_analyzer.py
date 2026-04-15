@@ -1,14 +1,14 @@
 """
-MouthAnalyzer — 四层遮挡判断 + 时序 Speaking Expert。
+MouthAnalyzer — Four-layer occlusion judgment + temporal Speaking Expert.
 
-四层架构:
-  L1: Observability gate (ROI 太小/太糊/太暗/mesh 失败)
+Four-layer architecture:
+  L1: Observability gate (ROI too small/blurry/dark/mesh failed)
   L2: Self-occlusion hard gate (|yaw| > max_yaw)
-  L3: Contour support (CLAHE + 法线梯度 → visible_ratio / max_gap)
-  L4: Temporal fusion (连续 N 帧遮挡证据 → 确认 occluded)
+  L3: Contour support (CLAHE + normal gradient → visible_ratio / max_gap)
+  L4: Temporal fusion (consecutive N frames occlusion evidence → confirm occluded)
 
 Speaking Expert:
-  多维口型时序分析 + 滞后状态机 (防闪烁)
+  Multi-dimensional mouth shape temporal analysis + hysteresis state machine (anti-flicker)
 """
 
 from __future__ import annotations
@@ -27,7 +27,7 @@ from .mesh_detector import (
 )
 
 # ======================================================================
-# 输出数据
+# Output data
 # ======================================================================
 
 @dataclass
@@ -41,11 +41,11 @@ class MouthState:
 
 
 # ======================================================================
-# Per-track 内部数据
+# Per-track internal data
 # ======================================================================
 
 class _RunningStats:
-    """增量均值/方差计算器。"""
+    """Incremental mean/variance calculator."""
     def __init__(self):
         self.n = 0
         self.mean = 0.0
@@ -64,7 +64,7 @@ class _RunningStats:
 
 
 class _TrackMouthState:
-    """Per-track 状态机 + 环形缓存 + 基线。"""
+    """Per-track state machine + ring buffer + baseline."""
     def __init__(self, buffer_size: int = 20):
         self.status = "unknown"
         self.speaking_prob_smoothed = 0.0
@@ -131,7 +131,7 @@ class MouthAnalyzer:
         self._clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(4, 4))
 
     # ------------------------------------------------------------------
-    # 主入口
+    # Main entry
     # ------------------------------------------------------------------
 
     def analyze(
@@ -212,7 +212,7 @@ class MouthAnalyzer:
         ts.speaking_prob_smoothed = ts.speaking_prob_smoothed * (1 - alpha) + speaking_prob * alpha
         sp = ts.speaking_prob_smoothed
 
-        # 滞后状态机
+        # Hysteresis state machine
         if sp >= self._spk_thresh:
             ts.speaking_streak += 1
             ts.not_speaking_streak = 0
@@ -241,13 +241,13 @@ class MouthAnalyzer:
     def _compute_contour_support(
         self, gray: np.ndarray, pts: np.ndarray, w: int, h: int,
     ) -> Tuple[float, int]:
-        """计算嘴部轮廓点的边界支持度。
+        """Compute boundary support for mouth contour points.
 
-        对每个轮廓点:
-          1. 估算法线方向 (垂直于相邻两点连线)
-          2. 沿法线方向采样内外两侧亮度, 计算对比度
-          3. 对比度高 → 真正的唇缘边界 → supported
-          4. 对比度低 → 被遮挡物覆盖 → not supported
+        For each contour point:
+          1. Estimate normal direction (perpendicular to adjacent points line)
+          2. Sample brightness on both sides along normal, compute contrast
+          3. High contrast → actual lip edge boundary → supported
+          4. Low contrast → covered by occlusion → not supported
         """
         clahe_gray = self._clahe.apply(gray)
 
@@ -340,7 +340,7 @@ class MouthAnalyzer:
         return min(max(prob, 0.0), 1.0)
 
     # ------------------------------------------------------------------
-    # 辅助
+    # Helpers
     # ------------------------------------------------------------------
 
     def _get_track(self, track_id: int) -> _TrackMouthState:

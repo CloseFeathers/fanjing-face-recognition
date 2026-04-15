@@ -1,9 +1,9 @@
 """
-Face Aligner —— 基于 5 点关键点 (kps5) 的仿射对齐。
+Face Aligner — Affine alignment based on 5-point keypoints (kps5).
 
-使用 Umeyama 算法估计相似变换 (旋转+缩放+平移)，
-将检测到的 kps5 映射到 ArcFace 标准参考点，
-并将原图 warpAffine 到固定 112x112 输出。
+Uses Umeyama algorithm to estimate similarity transform (rotation+scale+translation),
+maps detected kps5 to ArcFace standard reference points,
+and warpAffine the original image to fixed 112x112 output.
 """
 
 from __future__ import annotations
@@ -13,18 +13,18 @@ from typing import List, Optional, Tuple
 import cv2
 import numpy as np
 
-# ArcFace 标准参考点 (112x112 坐标系)
+# ArcFace standard reference points (112x112 coordinate system)
 ARCFACE_REF_112 = np.array([
-    [38.2946, 51.6963],   # 左眼中心
-    [73.5318, 51.5014],   # 右眼中心
-    [56.0252, 71.7366],   # 鼻尖
-    [41.5493, 92.3655],   # 左嘴角
-    [70.7299, 92.2041],   # 右嘴角
+    [38.2946, 51.6963],   # Left eye center
+    [73.5318, 51.5014],   # Right eye center
+    [56.0252, 71.7366],   # Nose tip
+    [41.5493, 92.3655],   # Left mouth corner
+    [70.7299, 92.2041],   # Right mouth corner
 ], dtype=np.float32)
 
 
 class FaceAligner:
-    """5 点仿射对齐器。"""
+    """5-point affine aligner."""
 
     def __init__(self, output_size: Tuple[int, int] = (112, 112)) -> None:
         self.output_size = output_size
@@ -36,13 +36,13 @@ class FaceAligner:
         image: np.ndarray,
         kps5: List[List[float]],
     ) -> Optional[np.ndarray]:
-        """对齐并裁剪人脸。
+        """Align and crop face.
 
         Args:
-            image: BGR 原图
-            kps5:  5x2 关键点 [[x,y], ...]
+            image: BGR original image
+            kps5:  5x2 keypoints [[x,y], ...]
         Returns:
-            112x112 BGR 对齐人脸, 失败返回 None
+            112x112 BGR aligned face, None on failure
         """
         src_pts = np.array(kps5, dtype=np.float32)
         if src_pts.shape != (5, 2):
@@ -54,7 +54,7 @@ class FaceAligner:
 
         aligned = cv2.warpAffine(
             image,
-            M[:2],                          # 取前两行 (2x3)
+            M[:2],                          # Take first two rows (2x3)
             self.output_size,
             flags=cv2.INTER_LINEAR,
             borderValue=(0, 0, 0),
@@ -63,7 +63,7 @@ class FaceAligner:
 
 
 # ======================================================================
-# Umeyama 相似变换估计
+# Umeyama similarity transform estimation
 # ======================================================================
 
 def _umeyama(
@@ -71,10 +71,10 @@ def _umeyama(
     dst: np.ndarray,
     estimate_scale: bool = True,
 ) -> Optional[np.ndarray]:
-    """Umeyama 算法: 从 src→dst 估计最优相似变换 (最小二乘)。
+    """Umeyama algorithm: estimate optimal similarity transform from src→dst (least squares).
 
     Returns:
-        3x3 齐次变换矩阵, 失败返回 None
+        3x3 homogeneous transformation matrix, None on failure
     """
     num = src.shape[0]
     dim = src.shape[1]

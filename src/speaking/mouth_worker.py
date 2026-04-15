@@ -1,8 +1,8 @@
 """
-MouthWorker — 异步说话状态检测线程。
+MouthWorker — Async speaking state detection thread.
 
-Per-track latest-only: 每个 track 独立任务槽，新帧覆盖旧帧。
-主线程 submit face crop → worker 线程分析 → 结果回写到共享 dict。
+Per-track latest-only: Each track has independent task slot, new frame overwrites old frame.
+Main thread submit face crop → worker thread analyzes → results write back to shared dict.
 """
 
 from __future__ import annotations
@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 
 
 class MouthWorker:
-    """异步说话状态检测 worker。"""
+    """Async speaking state detection worker."""
 
     def __init__(self, analyzer: MouthAnalyzer):
         self._analyzer = analyzer
@@ -46,13 +46,13 @@ class MouthWorker:
             self._thread = None
 
     def submit(self, track_id: int, face_crop: np.ndarray, timestamp_ms: float):
-        """Per-track latest-only 提交。"""
+        """Per-track latest-only submission."""
         with self._lock:
             self._pending[track_id] = (face_crop, timestamp_ms)
         self._event.set()
 
     def get_results(self) -> Dict[int, str]:
-        """读取最新的 track_id -> status 映射。"""
+        """Read latest track_id -> status mapping."""
         with self._lock:
             return dict(self._results)
 

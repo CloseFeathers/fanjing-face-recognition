@@ -1,13 +1,13 @@
 """
-SpeakingAnalyzer — XGBoost 说话检测 + BiSeNet 遮挡检测。
+SpeakingAnalyzer — XGBoost speaking detection + BiSeNet occlusion detection.
 
-替代旧的手调规则 MouthAnalyzer, 完全兼容 MouthWorker 接口。
+Replaces the old hand-tuned MouthAnalyzer, fully compatible with MouthWorker interface.
 
-架构:
-  L1: BiSeNet face parsing (每 track 每 N 次调用跑一次)
-      + |yaw| > 60 自遮挡
-  L2: XGBoost (blendshape 滑窗特征, 无 VSDLM)
-  L3: Hysteresis 状态机 (yaw-adaptive)
+Architecture:
+  L1: BiSeNet face parsing (runs once per N calls per track)
+      + |yaw| > 60 self-occlusion
+  L2: XGBoost (blendshape sliding window features, no VSDLM)
+  L3: Hysteresis state machine (yaw-adaptive)
 """
 
 from __future__ import annotations
@@ -61,7 +61,7 @@ class _TrackState:
 
 
 class SpeakingAnalyzer:
-    """XGBoost 说话检测 + BiSeNet 遮挡, 兼容 MouthWorker 接口。"""
+    """XGBoost speaking detection + BiSeNet occlusion, compatible with MouthWorker interface."""
 
     def __init__(
         self,
@@ -232,13 +232,13 @@ class SpeakingAnalyzer:
         self._tracks.clear()
 
     def close(self) -> None:
-        """释放 MediaPipe 资源。"""
+        """Release MediaPipe resources."""
         if hasattr(self, "_landmarker") and self._landmarker is not None:
             self._landmarker.close()
             self._landmarker = None
 
     def __del__(self) -> None:
-        """析构时确保资源释放。"""
+        """Ensure resource release on destruction."""
         self.close()
 
     def __enter__(self) -> "SpeakingAnalyzer":

@@ -1,10 +1,10 @@
 """
-MediaPipe FaceLandmarker 封装 — 从 face crop 提取 478 关键点及嘴部几何特征。
+MediaPipe FaceLandmarker wrapper — Extract 478 keypoints and mouth geometry from face crop.
 
-使用 MediaPipe Tasks API (v0.10.31+), 替代已废弃的 solutions API。
+Uses MediaPipe Tasks API (v0.10.31+), replaces deprecated solutions API.
 
-输入: BGR face crop (从原始帧按 bbox 裁切的高分辨率人脸图)
-输出: MeshResult (478 landmarks + 嘴部几何特征 + 头部姿态估计)
+Input: BGR face crop (high-resolution face image cropped from original frame by bbox)
+Output: MeshResult (478 landmarks + mouth geometry features + head pose estimation)
 """
 
 from __future__ import annotations
@@ -20,7 +20,7 @@ from mediapipe.tasks import python as mp_python
 from mediapipe.tasks.python import vision as mp_vision
 
 # ======================================================================
-# 嘴部关键点索引 (MediaPipe 478-point Face Mesh)
+# Mouth keypoint indices (MediaPipe 478-point Face Mesh)
 # ======================================================================
 
 OUTER_LIP_INDICES = [61, 146, 91, 181, 84, 17, 314, 405, 321, 375, 291,
@@ -47,7 +47,7 @@ ALL_MOUTH_INDICES = sorted(set(OUTER_LIP_INDICES + INNER_LIP_INDICES))
 
 @dataclass
 class MeshResult:
-    """单帧 Face Mesh 分析结果。"""
+    """Single frame Face Mesh analysis result."""
     landmarks_478: Optional[np.ndarray]
 
     mouth_open_ratio: float
@@ -65,7 +65,7 @@ class MeshResult:
 
 
 class MeshDetector:
-    """MediaPipe FaceLandmarker 推理封装 (Tasks API)。"""
+    """MediaPipe FaceLandmarker inference wrapper (Tasks API)."""
 
     def __init__(self, model_path: str = "models/face_landmarker.task"):
         if not os.path.exists(model_path):
@@ -85,7 +85,7 @@ class MeshDetector:
         self._landmarker = mp_vision.FaceLandmarker.create_from_options(options)
 
     def detect(self, face_crop_bgr: np.ndarray) -> MeshResult:
-        """对 face crop 做 FaceLandmarker 推理。"""
+        """Run FaceLandmarker inference on face crop."""
         h, w = face_crop_bgr.shape[:2]
         face_crop_size = float(min(h, w))
 
@@ -127,13 +127,13 @@ class MeshDetector:
         )
 
     def close(self) -> None:
-        """释放 MediaPipe 资源。"""
+        """Release MediaPipe resources."""
         if hasattr(self, "_landmarker") and self._landmarker is not None:
             self._landmarker.close()
             self._landmarker = None
 
     def __del__(self) -> None:
-        """析构时确保资源释放。"""
+        """Ensure resource release on destruction."""
         self.close()
 
     def __enter__(self) -> "MeshDetector":
@@ -177,7 +177,7 @@ class MeshDetector:
 
     @staticmethod
     def _yaw_from_matrix(matrix) -> float:
-        """从 MediaPipe 输出的 4x4 面部变换矩阵提取 yaw 角度。"""
+        """Extract yaw angle from MediaPipe's 4x4 facial transformation matrix."""
         try:
             m = np.array(matrix).reshape(4, 4) if not isinstance(matrix, np.ndarray) else matrix
             r00, r02 = float(m[0, 0]), float(m[0, 2])
@@ -187,7 +187,7 @@ class MeshDetector:
             return 0.0
 
     def _estimate_yaw_fallback(self, pts: np.ndarray) -> float:
-        """后备: 用鼻尖-脸宽比估算 yaw（变换矩阵不可用时）。"""
+        """Fallback: estimate yaw using nose-tip to face-width ratio (when transformation matrix unavailable)."""
         nose_x = pts[NOSE_TIP][0]
         left_x = np.mean([pts[i][0] for i in LEFT_FACE_CONTOUR])
         right_x = np.mean([pts[i][0] for i in RIGHT_FACE_CONTOUR])

@@ -1,7 +1,7 @@
 """
-预览叠加层 —— 在画面上渲染帧元数据 HUD。
+Preview overlay — Render frame metadata HUD on the image.
 
-叠加内容：timestamp_ms / frame_id / source_id / FPS / dropped_frames
+Overlay content: timestamp_ms / frame_id / source_id / FPS / dropped_frames
 """
 
 from __future__ import annotations
@@ -17,7 +17,7 @@ def draw_overlay(
     frame: Frame,
     fps: float,
 ) -> np.ndarray:
-    """在图像左上角叠加半透明信息面板，返回新图像（不修改原图）。"""
+    """Overlay semi-transparent info panel on top-left, returns new image (doesn't modify original)."""
     img = image.copy()
 
     lines = [
@@ -32,12 +32,12 @@ def draw_overlay(
     font = cv2.FONT_HERSHEY_SIMPLEX
     font_scale = 0.55
     thickness = 1
-    color = (0, 255, 0)       # 绿色
-    bg_color = (0, 0, 0)      # 黑色背景
+    color = (0, 255, 0)       # Green
+    bg_color = (0, 0, 0)      # Black background
     line_height = 22
     padding = 8
 
-    # 计算面板尺寸
+    # Calculate panel dimensions
     max_w = 0
     for line in lines:
         (tw, _), _ = cv2.getTextSize(line, font, font_scale, thickness)
@@ -46,12 +46,12 @@ def draw_overlay(
     panel_w = max_w + padding * 2
     panel_h = line_height * len(lines) + padding * 2
 
-    # 半透明背景
+    # Semi-transparent background
     overlay = img.copy()
     cv2.rectangle(overlay, (0, 0), (panel_w, panel_h), bg_color, -1)
     cv2.addWeighted(overlay, 0.55, img, 0.45, 0, img)
 
-    # 文字
+    # Text
     y = padding + 16
     for line in lines:
         cv2.putText(img, line, (padding, y), font, font_scale, color, thickness, cv2.LINE_AA)

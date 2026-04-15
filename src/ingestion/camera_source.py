@@ -1,12 +1,12 @@
 """
-CameraSource —— 摄像头实时采集源。
+CameraSource — Real-time camera capture source.
 
-关键设计：
-  - 独立后台线程持续抓帧（生产者）
-  - 帧缓冲队列大小严格为 1，只保留最新帧
-  - 消费者通过 read() 取帧；若队列为空则等待
-  - 使用 time.monotonic() 作为时间戳来源，免疫系统时间跳变
-  - 实时统计 FPS 与累计 dropped_frames
+Key design:
+  - Independent background thread continuously grabs frames (producer)
+  - Frame buffer queue size strictly 1, keeps only latest frame
+  - Consumer gets frames via read(); waits if queue is empty
+  - Uses time.monotonic() for timestamps, immune to system time jumps
+  - Real-time FPS and cumulative dropped_frames statistics
 """
 
 from __future__ import annotations
@@ -22,11 +22,11 @@ from .frame import Frame
 
 
 class CameraSource:
-    """摄像头帧源（生产者-消费者模型）。
+    """Camera frame source (producer-consumer model).
 
     Parameters:
-        device:     OpenCV 设备索引, 默认 0
-        api_pref:   后端偏好, Windows 上推荐 cv2.CAP_DSHOW
+        device:     OpenCV device index, default 0
+        api_pref:   Backend preference, cv2.CAP_DSHOW recommended on Windows
     """
 
     def __init__(self, device: int = 0, api_pref: int = cv2.CAP_ANY) -> None:
@@ -34,22 +34,22 @@ class CameraSource:
         self._api_pref = api_pref
         self.source_id = f"camera:{device}"
 
-        # ---------- 状态 ----------
+        # ---------- State ----------
         self._cap: Optional[cv2.VideoCapture] = None
         self._thread: Optional[threading.Thread] = None
         self._running = False
 
-        # ---------- 帧缓冲（大小 = 1） ----------
+        # ---------- Frame buffer (size = 1) ----------
         self._lock = threading.Lock()
         self._latest_frame: Optional[np.ndarray] = None
         self._latest_ts: float = 0.0
         self._new_frame_event = threading.Event()
 
-        # ---------- 计数 ----------
-        self._grabbed_count: int = 0      # 后台线程总抓帧数
-        self._consumed_count: int = 0     # 消费者已取走帧数
-        self._dropped_frames: int = 0     # 累计丢弃帧数
-        self._frame_id: int = 0           # 对外递增帧号
+        # ---------- Counters ----------
+        self._grabbed_count: int = 0      # Total frames grabbed by background thread
+        self._consumed_count: int = 0     # Frames consumed by consumer
+        self._dropped_frames: int = 0     # Cumulative dropped frames
+        self._frame_id: int = 0           # External incrementing frame ID
 
         # ---------- FPS ----------
         self._fps_window_start: float = 0.0
@@ -57,14 +57,14 @@ class CameraSource:
         self._current_fps: float = 0.0
 
     # ==================================================================
-    # 生命周期
+    # Lifecycle
     # ==================================================================
 
     def open(self) -> "CameraSource":
-        """打开摄像头并启动后台采集线程。"""
+        """Open camera and start background capture thread."""
         self._cap = cv2.VideoCapture(self._device, self._api_pref)
         if not self._cap.isOpened():
-            raise RuntimeError(f"无法打开摄像头 {self._device}")
+            raise RuntimeError(f"Cannot open camera {self._device}")
         self._running = True
         self._fps_window_start = time.monotonic()
         self._thread = threading.Thread(target=self._capture_loop, daemon=True)
@@ -72,7 +72,7 @@ class CameraSource:
         return self
 
     def close(self) -> None:
-        """停止采集线程并释放资源。"""
+        """Stop capture thread and release resources."""
         self._running = False
         if self._thread is not None:
             self._thread.join(timeout=3.0)
@@ -89,7 +89,7 @@ class CameraSource:
         self.close()
 
     # ==================================================================
-    # 后台采集线程（生产者）
+    # Background capture thread (producer)
     # ==================================================================
 
     def _capture_loop(self) -> None:
@@ -99,11 +99,11 @@ class CameraSource:
                 time.sleep(0.001)
                 continue
 
-            ts = time.monotonic() * 1000.0  # 转毫秒
+            ts = time.monotonic() * 1000.0  # Convert to milliseconds
 
             with self._lock:
                 if self._latest_frame is not None:
-                    # 旧帧未被消费，丢弃
+                    # Old frame not consumed, discard
                     self._dropped_frames += 1
                 self._latest_frame = img
                 self._latest_ts = ts
@@ -112,14 +112,14 @@ class CameraSource:
             self._new_frame_event.set()
 
     # ==================================================================
-    # 消费者接口
+    # Consumer interface
     # ==================================================================
 
     def read(self, timeout: float = 5.0) -> Optional[Frame]:
-        """阻塞等待并返回最新帧。
+        """Block and wait for latest frame.
 
         Returns:
-            Frame | None  如果超时或已关闭则返回 None
+            Frame | None  Returns None if timeout or closed
         """
         if not self._running:
             return None
@@ -130,7 +130,7 @@ class CameraSource:
         with self._lock:
             img = self._latest_frame
             ts = self._latest_ts
-            self._latest_frame = None  # 标记已消费
+            self._latest_frame = None  # Mark as consumed
             dropped = self._dropped_frames
 
         self._new_frame_event.clear()
@@ -152,7 +152,7 @@ class CameraSource:
         self._frame_id += 1
         self._consumed_count += 1
 
-        # 更新 FPS（滑动 1 秒窗口）
+        # Update FPS (sliding 1-second window)
         self._fps_window_count += 1
         now = time.monotonic()
         elapsed = now - self._fps_window_start
@@ -164,7 +164,7 @@ class CameraSource:
         return frame
 
     # ==================================================================
-    # 统计信息
+    # Statistics
     # ==================================================================
 
     @property

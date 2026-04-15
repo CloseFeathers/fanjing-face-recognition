@@ -1,6 +1,7 @@
 """
 Module 0: Video Ingestion & Timestamp Layer
-统一摄像头 / 视频文件两种输入源，对外输出标准 Frame 对象。
+
+Unifies camera and video file input sources, outputs standard Frame objects.
 """
 
 from .camera_source import CameraSource

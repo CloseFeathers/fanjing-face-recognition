@@ -1,5 +1,5 @@
 """
-JSONL 帧日志记录器 —— 将每帧元数据追加写入 .jsonl 文件。
+JSONL frame logger — Appends each frame's metadata to a .jsonl file.
 """
 
 from __future__ import annotations
@@ -12,10 +12,10 @@ from .frame import Frame
 
 
 class FrameLogger:
-    """将 Frame 元数据以 JSONL 格式逐行写入文件。
+    """Write Frame metadata as JSONL format line by line to file.
 
     Parameters:
-        path: 输出文件路径, 默认 output/ingestion_frames.jsonl
+        path: Output file path, default output/ingestion_frames.jsonl
     """
 
     def __init__(self, path: str = "output/ingestion_frames.jsonl") -> None:
