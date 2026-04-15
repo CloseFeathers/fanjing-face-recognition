@@ -195,7 +195,7 @@ class PipelineState:
         self.sampler: Optional[TrackSampler] = None
         self.running = False
         self.mode = ""
-        self.det_every_n = 1
+        self.det_every_n = 3
         self.align_enabled = False
         self.sample_min_det = 0.60
 
@@ -1251,7 +1251,7 @@ def api_start():
     track_update_low_thres = max(0.01, min(1.0, float(data.get("track_update_low_thres", 0.15))))
     sample_min_det = max(0.01, min(1.0, float(data.get("sample_min_det", 0.60))))
 
-    det_every_n = max(1, min(30, int(data.get("det_every_n", 1))))
+    det_every_n = max(1, min(30, int(data.get("det_every_n", 3))))
     max_age = max(1, min(300, int(data.get("max_age", 30))))
     min_hits = max(1, min(30, int(data.get("min_hits", 3))))
     match_iou = max(0.01, min(1.0, float(data.get("match_iou_threshold", 0.3))))

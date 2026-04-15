@@ -67,20 +67,7 @@ body {
   transition: all var(--duration);
 }
 .status-dot.running { background: var(--success); box-shadow: 0 0 8px rgba(77,163,120,0.5); }
-.topbar-center { flex:1; display:flex; justify-content:center; }
-.mode-select {
-  background: transparent;
-  color: var(--text-secondary);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-sm);
-  padding: 5px 14px;
-  font-size: 12px;
-  font-family: inherit;
-  cursor: pointer;
-  transition: border-color var(--duration);
-}
-.mode-select:hover { border-color: var(--border-default); }
-.mode-select:focus { outline: none; border-color: var(--border-default); }
+.topbar-center { flex:1; }
 .topbar-right {
   display: flex;
   align-items: center;
@@ -428,13 +415,7 @@ body {
     <div class="status-dot" id="statusDot"></div>
     <span>FlowElement</span>
   </div>
-  <div class="topbar-center">
-    <select class="mode-select" id="modeSelect">
-      <option value="standard">Standard Mode</option>
-      <option value="performance">High Performance Mode</option>
-      <option value="precision">Precision Mode</option>
-    </select>
-  </div>
+  <div class="topbar-center"></div>
   <div class="topbar-right">
     <span id="fpsDisplay">--</span>
     <button class="btn-icon" id="btnSettings" title="Settings">&#9881;</button>
@@ -502,12 +483,6 @@ body {
 </div>
 
 <script>
-const MODES = {
-  standard:    { det_size:640, det_every_n:1, speaking:true },
-  performance: { det_size:480, det_every_n:3, speaking:false },
-  precision:   { det_size:640, det_every_n:1, speaking:true },
-};
-
 let running = false, pollId = null;
 
 document.getElementById('btnSettings').onclick = () =>
@@ -520,12 +495,11 @@ document.getElementById('settingsOverlay').onclick = function(e) {
 };
 
 function cfg() {
-  const m = MODES[document.getElementById('modeSelect').value];
   return {
     mode:'camera',
     device: +document.getElementById('setCamDevice').value,
-    det_size: +document.getElementById('setDetSize').value || m.det_size,
-    det_thresh:0.5, det_every_n:m.det_every_n,
+    det_size: +document.getElementById('setDetSize').value || 640,
+    det_thresh:0.5, det_every_n:3,
     detector_emit_min_det:0.15, track_new_high_thres:0.50,
     track_update_low_thres:0.15, sample_min_det:0.60,
     max_age:30, min_hits:3, match_iou_threshold:0.3,
@@ -536,7 +510,7 @@ function cfg() {
     embed_cooldown_ms:200,
     credit_enabled:true, credit_increment:1.0,
     credit_decrement:0.5, credit_threshold:3.0, credit_max:10.0,
-    speaking_enabled: document.getElementById('toggleSpeaking').classList.contains('on') && m.speaking,
+    speaking_enabled: document.getElementById('toggleSpeaking').classList.contains('on'),
     m5_enabled: document.getElementById('toggleAutoReg').classList.contains('on'),
     m5_known_threshold:0.55, m5_band_threshold:0.35, m5_margin_threshold:0.10,
     show_hud: false,
