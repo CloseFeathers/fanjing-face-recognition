@@ -126,8 +126,22 @@ class MeshDetector:
             mouth_shape_score=mouth_shape_score,
         )
 
-    def close(self):
-        self._landmarker.close()
+    def close(self) -> None:
+        """释放 MediaPipe 资源。"""
+        if hasattr(self, "_landmarker") and self._landmarker is not None:
+            self._landmarker.close()
+            self._landmarker = None
+
+    def __del__(self) -> None:
+        """析构时确保资源释放。"""
+        self.close()
+
+    def __enter__(self) -> "MeshDetector":
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb) -> bool:
+        self.close()
+        return False
 
     # ------------------------------------------------------------------
 
@@ -169,7 +183,7 @@ class MeshDetector:
             r00, r02 = float(m[0, 0]), float(m[0, 2])
             yaw = float(np.degrees(np.arctan2(r02, r00)))
             return yaw
-        except Exception:
+        except (ValueError, TypeError, IndexError):
             return 0.0
 
     def _estimate_yaw_fallback(self, pts: np.ndarray) -> float:
@@ -195,7 +209,7 @@ class MeshDetector:
         try:
             hull = cv2.convexHull(mouth_2d.astype(np.float32))
             hull_area = float(cv2.contourArea(hull))
-        except Exception:
+        except cv2.error:
             return 0.0
         area_ratio = hull_area / bbox_area
         area_score = min(area_ratio / 0.6, 1.0)
