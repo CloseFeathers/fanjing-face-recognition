@@ -1,12 +1,12 @@
-# 贡献指南
+# Contributing Guide
 
-感谢你对 Fanjing Face Recognition 的关注！本项目是 [FlowElement](https://github.com/FlowElement) 开源生态的一部分。
+Thank you for your interest in Fanjing Face Recognition! This project is part of the [FlowElement](https://github.com/FlowElement) open source ecosystem.
 
-通用贡献规范（DCO 签署、PR 流程等）请参阅 [FlowElement 贡献指南](https://github.com/FlowElement/m_flow/blob/main/CONTRIBUTING.md)。
+For general contribution guidelines (DCO signing, PR process, etc.), please refer to the [FlowElement Contributing Guide](https://github.com/FlowElement/m_flow/blob/main/CONTRIBUTING.md).
 
-以下为本项目特有的开发说明。
+Below are development instructions specific to this project.
 
-## 开发环境搭建
+## Setting Up Development Environment
 
 ```bash
 git clone <repo-url>
@@ -17,13 +17,13 @@ pip install -r requirements.txt
 pip install -r requirements-training.txt
 ```
 
-## 代码风格
+## Code Style
 
-- 遵循 PEP 8，行宽 120 字符
-- 使用类型注解（`typing` 模块）
-- 变量名使用 snake_case，类名使用 PascalCase
+- Follow PEP 8, line width 120 characters
+- Use type annotations (`typing` module)
+- Variable names use snake_case, class names use PascalCase
 
-## 报告问题
+## Reporting Issues
 
-- 功能 Bug：通过 GitHub Issues 提交
-- 安全漏洞：请参阅 [FlowElement 安全政策](https://github.com/FlowElement/m_flow/blob/main/SECURITY.md)
+- Feature bugs: Submit via GitHub Issues
+- Security vulnerabilities: Please refer to [FlowElement Security Policy](https://github.com/FlowElement/m_flow/blob/main/SECURITY.md)

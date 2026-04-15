@@ -1,5 +1,5 @@
-# 安全政策
+# Security Policy
 
-Fanjing Face Recognition 是 [FlowElement](https://github.com/FlowElement) 开源生态的一部分。
+Fanjing Face Recognition is part of the [FlowElement](https://github.com/FlowElement) open source ecosystem.
 
-安全漏洞报告方式、响应时间和支持的版本请参阅 [FlowElement 统一安全政策](https://github.com/FlowElement/m_flow/blob/main/SECURITY.md)。
+For security vulnerability reporting methods, response times, and supported versions, please refer to the [FlowElement Unified Security Policy](https://github.com/FlowElement/m_flow/blob/main/SECURITY.md).

@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>心流元素 - 人脸识别系统</title>
+<title>FlowElement - Face Recognition System</title>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
 :root {
@@ -132,9 +132,8 @@ body {
 .face-box {
   position: absolute;
   pointer-events: none;
-  /* 不用 transition，直接跳到新位置更跟手 */
 }
-/* 四角装饰线（替代整框边线，更有科技感） */
+/* Corner decorations (more tech-looking than full border) */
 .face-box::before, .face-box::after,
 .face-box .corner-bl, .face-box .corner-br {
   content: '';
@@ -164,7 +163,7 @@ body {
   border-bottom-width: 2px; border-right-width: 2px;
   border-bottom-right-radius: 4px;
 }
-/* 状态变色 */
+/* State colors */
 .face-box.known::before, .face-box.known::after,
 .face-box.known .corner-bl, .face-box.known .corner-br {
   border-color: rgba(255,255,255,0.6);
@@ -180,7 +179,7 @@ body {
 .face-box.occluded .corner-bl, .face-box.occluded .corner-br {
   border-color: var(--warning);
 }
-/* 标签 */
+/* Labels */
 .face-label {
   position: absolute;
   left: 0; right: 0;
@@ -427,39 +426,39 @@ body {
 <div class="topbar">
   <div class="brand">
     <div class="status-dot" id="statusDot"></div>
-    <span>心流元素</span>
+    <span>FlowElement</span>
   </div>
   <div class="topbar-center">
     <select class="mode-select" id="modeSelect">
-      <option value="standard">标准模式</option>
-      <option value="performance">高性能模式</option>
-      <option value="precision">精确模式</option>
+      <option value="standard">Standard Mode</option>
+      <option value="performance">High Performance Mode</option>
+      <option value="precision">Precision Mode</option>
     </select>
   </div>
   <div class="topbar-right">
     <span id="fpsDisplay">--</span>
-    <button class="btn-icon" id="btnSettings" title="设置">&#9881;</button>
+    <button class="btn-icon" id="btnSettings" title="Settings">&#9881;</button>
   </div>
 </div>
 
 <div class="main">
   <div class="video-area">
     <div class="video-wrapper" id="videoWrapper">
-      <div class="video-placeholder" id="videoPlaceholder">点击启动开始识别</div>
+      <div class="video-placeholder" id="videoPlaceholder">Click Start to begin recognition</div>
       <img id="videoFeed" src="" style="display:none">
       <div class="overlay-container" id="overlayContainer"></div>
     </div>
     <div class="video-controls">
-      <button class="btn btn-primary" id="btnStart" onclick="startPipeline()">启动</button>
-      <button class="btn btn-secondary" id="btnStop" onclick="stopPipeline()" disabled>停止</button>
+      <button class="btn btn-primary" id="btnStart" onclick="startPipeline()">Start</button>
+      <button class="btn btn-secondary" id="btnStop" onclick="stopPipeline()" disabled>Stop</button>
       <span class="control-info" id="personCount"></span>
     </div>
   </div>
 
   <div class="people-panel">
-    <div class="panel-header">识别人物</div>
+    <div class="panel-header">Recognized People</div>
     <div class="panel-body" id="peopleList">
-      <div class="empty-state">等待人物进入画面</div>
+      <div class="empty-state">Waiting for people to enter frame</div>
     </div>
   </div>
 </div>
@@ -467,35 +466,35 @@ body {
 <div class="settings-overlay" id="settingsOverlay">
   <div class="settings-panel">
     <div class="settings-title">
-      <span>设置</span>
+      <span>Settings</span>
       <button class="settings-close" onclick="closeSettings()">&#10005;</button>
     </div>
     <div class="setting-group">
-      <div class="setting-label">摄像头</div>
+      <div class="setting-label">Camera</div>
       <div class="setting-row">
-        <span class="setting-name">设备</span>
+        <span class="setting-name">Device</span>
         <select class="setting-select" id="setCamDevice">
           <option value="0">0</option><option value="1">1</option><option value="2">2</option>
         </select>
       </div>
     </div>
     <div class="setting-group">
-      <div class="setting-label">功能</div>
+      <div class="setting-label">Features</div>
       <div class="setting-row">
-        <span class="setting-name">说话检测</span>
+        <span class="setting-name">Speaking Detection</span>
         <div class="toggle on" id="toggleSpeaking" onclick="this.classList.toggle('on')"></div>
       </div>
       <div class="setting-row">
-        <span class="setting-name">自动注册</span>
+        <span class="setting-name">Auto Registration</span>
         <div class="toggle on" id="toggleAutoReg" onclick="this.classList.toggle('on')"></div>
       </div>
     </div>
     <div class="setting-group">
-      <div class="setting-label">检测精度</div>
+      <div class="setting-label">Detection Precision</div>
       <div class="setting-row">
-        <span class="setting-name">分辨率</span>
+        <span class="setting-name">Resolution</span>
         <select class="setting-select" id="setDetSize">
-          <option value="320">低</option><option value="480">中</option><option value="640" selected>高</option>
+          <option value="320">Low</option><option value="480">Medium</option><option value="640" selected>High</option>
         </select>
       </div>
     </div>
@@ -559,7 +558,7 @@ function escapeHtml(str) {
 
 async function startPipeline() {
   const b = document.getElementById('btnStart');
-  b.disabled=true; b.textContent='启动中...';
+  b.disabled=true; b.textContent='Starting...';
   try {
     const r = await apiFetch('/api/start',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(cfg())});
     const d = await r.json();
@@ -569,11 +568,11 @@ async function startPipeline() {
       document.getElementById('videoFeed').src='/video_feed?ts={{ stream_ts }}&sig={{ stream_sig }}';
       document.getElementById('videoFeed').style.display='block';
       document.getElementById('videoPlaceholder').style.display='none';
-      b.textContent='运行中';
+      b.textContent='Running';
       document.getElementById('btnStop').disabled=false;
       startPoll();
-    } else { b.disabled=false; b.textContent='启动'; alert(d.error||'启动失败'); }
-  } catch(e){ b.disabled=false; b.textContent='启动'; alert('连接失败'); }
+    } else { b.disabled=false; b.textContent='Start'; alert(d.error||'Failed to start'); }
+  } catch(e){ b.disabled=false; b.textContent='Start'; alert('Connection failed'); }
 }
 
 async function stopPipeline() {
@@ -583,12 +582,12 @@ async function stopPipeline() {
   document.getElementById('videoFeed').style.display='none';
   document.getElementById('videoFeed').src='';
   document.getElementById('videoPlaceholder').style.display='flex';
-  document.getElementById('videoPlaceholder').textContent='已停止';
+  document.getElementById('videoPlaceholder').textContent='Stopped';
   document.getElementById('btnStart').disabled=false;
-  document.getElementById('btnStart').textContent='启动';
+  document.getElementById('btnStart').textContent='Start';
   document.getElementById('btnStop').disabled=true;
   stopPoll();
-  document.getElementById('peopleList').innerHTML='<div class="empty-state">等待人物进入画面</div>';
+  document.getElementById('peopleList').innerHTML='<div class="empty-state">Waiting for people to enter frame</div>';
   document.getElementById('overlayContainer').innerHTML='';
   document.getElementById('fpsDisplay').textContent='--';
   document.getElementById('personCount').textContent='';
@@ -607,7 +606,7 @@ async function poll(){
     const pr=await apiFetch('/api/persons');
     const persons=await pr.json();
     const n=persons.length;
-    document.getElementById('personCount').textContent=n>0?n+' 人在画面中':'';
+    document.getElementById('personCount').textContent=n>0?n+' people in frame':'';
     renderOverlay(persons);
     renderCards(persons);
   }catch(e){}
@@ -620,7 +619,7 @@ function renderOverlay(persons){
   for(const p of persons){
     if(!p.bbox)continue;
     const [nx1,ny1,nx2,ny2]=p.bbox;
-    // 扩大 bbox 15% 以框住完整头部（检测框通常不包含下巴和发际线）
+    // Expand bbox by 15% to frame complete head (detection box usually doesn't include chin and hairline)
     const bw=nx2-nx1, bh=ny2-ny1;
     const pad=0.15;
     const ex1=Math.max(0,nx1-bw*pad), ey1=Math.max(0,ny1-bh*pad);
@@ -638,11 +637,11 @@ function renderOverlay(persons){
 
     let name=p.name||'';
     if(!name){
-      if(!p.person_id) name='检测中';
-      else if(p.identity==='KNOWN_STRONG') name='已知用户 #'+(p.registered_id||p.person_id);
-      else if(p.identity==='AMBIGUOUS') name='识别中';
-      else if(p.identity==='UNKNOWN_STRONG') name='新用户';
-      else name='用户 #'+(p.person_id||p.track_id);
+      if(!p.person_id) name='Detecting';
+      else if(p.identity==='KNOWN_STRONG') name='Known User #'+(p.registered_id||p.person_id);
+      else if(p.identity==='AMBIGUOUS') name='Identifying';
+      else if(p.identity==='UNKNOWN_STRONG') name='New User';
+      else name='User #'+(p.person_id||p.track_id);
     }
 
     let emoji='';
@@ -662,7 +661,7 @@ let _isEditing=false;
 function renderCards(persons){
   if(_isEditing)return;
   const el=document.getElementById('peopleList');
-  if(!persons||!persons.length){el.innerHTML='<div class="empty-state">等待人物进入画面</div>';return;}
+  if(!persons||!persons.length){el.innerHTML='<div class="empty-state">Waiting for people to enter frame</div>';return;}
 
   persons.sort((a,b)=>{
     if(a.mouth==='speaking'&&b.mouth!=='speaking')return -1;
@@ -674,23 +673,23 @@ function renderCards(persons){
   for(const p of persons){
     const cardCls=p.mouth==='speaking'?'person-card speaking':'person-card';
     const dotCls=p.mouth==='speaking'?'spk':p.mouth==='occluded'?'occ':'sil';
-    const stText=p.mouth==='speaking'?'🎤 说话中':p.mouth==='occluded'?'🤐 被遮挡':'🔇 静默';
+    const stText=p.mouth==='speaking'?'🎤 Speaking':p.mouth==='occluded'?'🤐 Occluded':'🔇 Silent';
     const stCls=p.mouth==='speaking'?'spk':p.mouth==='occluded'?'occ':'';
 
     let displayName=p.name||'';
     if(!displayName){
-      if(!p.person_id) displayName='检测中...';
-      else if(p.identity==='KNOWN_STRONG') displayName='已知用户 #'+(p.registered_id||p.person_id);
-      else if(p.identity==='AMBIGUOUS') displayName='用户 #'+p.person_id;
-      else if(p.identity==='UNKNOWN_STRONG') displayName='新用户 #'+p.person_id;
-      else displayName='用户 #'+(p.person_id||p.track_id);
+      if(!p.person_id) displayName='Detecting...';
+      else if(p.identity==='KNOWN_STRONG') displayName='Known User #'+(p.registered_id||p.person_id);
+      else if(p.identity==='AMBIGUOUS') displayName='User #'+p.person_id;
+      else if(p.identity==='UNKNOWN_STRONG') displayName='New User #'+p.person_id;
+      else displayName='User #'+(p.person_id||p.track_id);
     }
 
     let idText='';
-    if(p.identity==='KNOWN_STRONG') idText='已识别身份';
-    else if(p.identity==='AMBIGUOUS') idText='识别中';
-    else if(p.identity==='UNKNOWN_STRONG') idText='正在建档';
-    else idText='检测中';
+    if(p.identity==='KNOWN_STRONG') idText='Identity Confirmed';
+    else if(p.identity==='AMBIGUOUS') idText='Identifying';
+    else if(p.identity==='UNKNOWN_STRONG') idText='Registering';
+    else idText='Detecting';
 
     const safeAvatar=(p.avatar&&/^[A-Za-z0-9+/=]+$/.test(p.avatar))?p.avatar:'';
     const avHtml=safeAvatar?'<img src="data:image/jpeg;base64,'+safeAvatar+'">':'&#128100;';
@@ -717,7 +716,7 @@ function editName(el,pid){
   const input=document.createElement('input');
   input.className='person-name-input';
   input.value=current;
-  input.placeholder='输入名字...';
+  input.placeholder='Enter name...';
   el.replaceWith(input);
   input.focus();
   input.select();

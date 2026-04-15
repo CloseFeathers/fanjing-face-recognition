@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>心流元素 · 人脸识别系统</title>
+<title>FlowElement · Face Recognition System</title>
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
@@ -194,7 +194,7 @@ body {
 <body>
 
 <div class="header">
-  <h1>心流元素 · 人脸识别系统</h1>
+  <h1>FlowElement · Face Recognition System</h1>
   <span id="statusBadge" class="badge off">OFFLINE</span>
   <span style="font-size:0.6rem;color:#555;margin-left:auto;">CreditGate</span>
 </div>
@@ -204,7 +204,7 @@ body {
   <div class="video-panel" id="videoPanel">
     <div class="placeholder" id="placeholder">
       <span class="icon">&#9655;</span>
-      选择模式并点击「启动」开始跟踪
+      Select mode and click "Start" to begin tracking
     </div>
     <img id="videoFeed" src="" style="display:none;" alt="video feed">
   </div>
@@ -212,39 +212,39 @@ body {
   <div class="sidebar">
 
     <div class="card">
-      <h2>控制面板</h2>
+      <h2>Control Panel</h2>
 
       <div class="mode-tabs">
-        <button id="tabCamera" class="active" onclick="switchMode('camera')">摄像头</button>
-        <button id="tabVideo" onclick="switchMode('video')">视频文件</button>
+        <button id="tabCamera" class="active" onclick="switchMode('camera')">Camera</button>
+        <button id="tabVideo" onclick="switchMode('video')">Video File</button>
       </div>
 
       <div id="cameraOpts">
         <div class="form-row">
-          <label>设备号</label>
+          <label>Device ID</label>
           <input type="number" id="camDevice" value="0" min="0" max="10">
         </div>
       </div>
 
       <div id="videoOpts" style="display:none;">
         <div class="upload-area" id="uploadArea" onclick="document.getElementById('fileInput').click()">
-          拖拽视频或点击上传
+          Drag video or click to upload
           <input type="file" id="fileInput" accept="video/*" style="display:none;" onchange="handleUpload(this)">
         </div>
         <div class="video-list" id="videoList"></div>
         <div class="form-row">
-          <label>文件路径</label>
+          <label>File Path</label>
           <input type="text" id="videoPath" placeholder="uploads/demo.mp4">
         </div>
         <div class="checkbox-row">
           <input type="checkbox" id="chkRealtime">
-          <label for="chkRealtime">按原始帧率播放</label>
+          <label for="chkRealtime">Play at original frame rate</label>
         </div>
       </div>
 
-      <div class="section-label">检测参数</div>
+      <div class="section-label">Detection Parameters</div>
       <div class="form-row">
-        <label>检测尺寸</label>
+        <label>Det Size</label>
         <select id="detSize">
           <option value="320">320</option>
           <option value="480">480</option>
@@ -252,29 +252,29 @@ body {
         </select>
       </div>
 
-      <div class="section-label">四阈值 (检测→跟踪→采样)</div>
+      <div class="section-label">Four Thresholds (Detection→Tracking→Sampling)</div>
       <div class="param-row">
-        <label title="SCRFD 模型的检测阈值 (高分框的质量下限)">det_thresh</label>
+        <label title="SCRFD model detection threshold (quality floor for high-score boxes)">det_thresh</label>
         <input type="number" id="detThresh" value="0.5" min="0.1" max="1.0" step="0.05">
       </div>
       <div class="param-row">
-        <label title="送入 tracker 的最低检测分 (放行弱框参与轨迹维护)">emit_min</label>
+        <label title="Minimum detection score to emit to tracker (allow weak boxes for track maintenance)">emit_min</label>
         <input type="number" id="emitMin" value="0.15" min="0.05" max="0.5" step="0.05">
       </div>
       <div class="param-row">
-        <label title="允许创建新轨迹的高分阈值">new_high</label>
+        <label title="High score threshold for creating new tracks">new_high</label>
         <input type="number" id="trackNewHigh" value="0.50" min="0.2" max="0.9" step="0.05">
       </div>
       <div class="param-row">
-        <label title="弱框更新已有/丢失轨迹的阈值">update_low</label>
+        <label title="Weak box threshold for updating existing/lost tracks">update_low</label>
         <input type="number" id="trackUpdateLow" value="0.15" min="0.05" max="0.5" step="0.05">
       </div>
       <div class="param-row">
-        <label title="进入对齐/embedding 的最低检测分">sample_min</label>
+        <label title="Minimum detection score for alignment/embedding">sample_min</label>
         <input type="number" id="sampleMinDet" value="0.60" min="0.3" max="0.9" step="0.05">
       </div>
 
-      <div class="section-label">跟踪参数</div>
+      <div class="section-label">Tracking Parameters</div>
       <div class="form-row">
         <label>det_every_n</label>
         <input type="number" id="detEveryN" value="1" min="1" max="30">
@@ -284,10 +284,10 @@ body {
         <input type="number" id="maxAge" value="30" min="1" max="200">
       </div>
 
-      <div class="section-label">对齐 + 质量采样</div>
+      <div class="section-label">Alignment + Quality Sampling</div>
       <div class="checkbox-row">
         <input type="checkbox" id="chkAlign" checked>
-        <label for="chkAlign">启用人脸对齐采样</label>
+        <label for="chkAlign">Enable face alignment sampling</label>
       </div>
       <div class="form-row">
         <label>min_det</label>
@@ -298,10 +298,10 @@ body {
         <input type="number" id="minQualBlur" value="40" min="0" max="500" step="5">
       </div>
 
-      <div class="section-label">Embedding + 人员匹配</div>
+      <div class="section-label">Embedding + Person Matching</div>
       <div class="checkbox-row">
         <input type="checkbox" id="chkEmbed" checked>
-        <label for="chkEmbed">启用人员匹配 (T#→P#)</label>
+        <label for="chkEmbed">Enable person matching (T#→P#)</label>
       </div>
       <div class="form-row">
         <label>sim_thresh</label>
@@ -309,47 +309,47 @@ body {
       </div>
       <div class="form-row">
         <label>cooldown(ms)</label>
-        <input type="number" id="embCooldown" value="200" min="50" max="5000" step="50" title="同一 track embedding 最小间隔(ms)">
+        <input type="number" id="embCooldown" value="200" min="50" max="5000" step="50" title="Minimum interval between embeddings for same track (ms)">
       </div>
 
-      <div class="section-label">信用积分门控 (Credit Gate)</div>
+      <div class="section-label">Credit Score Gate</div>
       <div class="checkbox-row">
         <input type="checkbox" id="chkCredit" checked>
-        <label for="chkCredit">启用信用积分制</label>
+        <label for="chkCredit">Enable credit score system</label>
       </div>
       <div class="param-row">
-        <label>增分</label>
-        <input type="number" id="creditIncrement" value="1.0" min="0.1" max="5" step="0.1" title="quality 通过时加分">
-        <label>扣分</label>
-        <input type="number" id="creditDecrement" value="0.5" min="0.1" max="5" step="0.1" title="quality 失败时扣分">
+        <label>Increment</label>
+        <input type="number" id="creditIncrement" value="1.0" min="0.1" max="5" step="0.1" title="Score added when quality passes">
+        <label>Decrement</label>
+        <input type="number" id="creditDecrement" value="0.5" min="0.1" max="5" step="0.1" title="Score deducted when quality fails">
       </div>
       <div class="param-row">
-        <label>门槛</label>
-        <input type="number" id="creditThreshold" value="3.0" min="1" max="20" step="0.5" title="允许 embedding 的最低信用分">
-        <label>上限</label>
-        <input type="number" id="creditMax" value="10.0" min="3" max="50" step="1" title="信用分上限">
+        <label>Threshold</label>
+        <input type="number" id="creditThreshold" value="3.0" min="1" max="20" step="0.5" title="Minimum credit score for embedding">
+        <label>Max</label>
+        <input type="number" id="creditMax" value="10.0" min="3" max="50" step="1" title="Maximum credit score">
       </div>
 
-      <div class="section-label">三态身份 + 候选池 (M5)</div>
+      <div class="section-label">Tri-state Identity + Candidate Pool (M5)</div>
       <div class="checkbox-row">
         <input type="checkbox" id="chkM5" checked>
-        <label for="chkM5">启用候选池 (C池)</label>
+        <label for="chkM5">Enable candidate pool (C-pool)</label>
       </div>
 
-      <div class="section-label">说话检测</div>
+      <div class="section-label">Speaking Detection</div>
       <div class="checkbox-row">
         <input type="checkbox" id="chkSpeaking" checked>
-        <label for="chkSpeaking">启用说话检测 (SPK/OCC)</label>
+        <label for="chkSpeaking">Enable speaking detection (SPK/OCC)</label>
       </div>
 
       <div class="btn-row">
-        <button class="btn btn-start" id="btnStart" onclick="startPipeline()">启动</button>
-        <button class="btn btn-stop"  id="btnStop"  onclick="stopPipeline()" disabled>停止</button>
+        <button class="btn btn-start" id="btnStart" onclick="startPipeline()">Start</button>
+        <button class="btn btn-stop"  id="btnStop"  onclick="stopPipeline()" disabled>Stop</button>
       </div>
     </div>
 
     <div class="card">
-      <h2>实时统计</h2>
+      <h2>Real-time Statistics</h2>
       <div class="stats-grid">
         <div class="stat-item">
           <div class="label">FPS</div>
@@ -376,39 +376,39 @@ body {
           <div class="value emb" id="sEmb">--</div>
         </div>
         <div class="stat-item">
-          <div class="label">人脸数</div>
+          <div class="label">Faces</div>
           <div class="value faces" id="sFaces">--</div>
         </div>
         <div class="stat-item">
-          <div class="label">轨迹数</div>
+          <div class="label">Tracks</div>
           <div class="value tracks" id="sTracks">--</div>
         </div>
         <div class="stat-item">
-          <div class="label">人员(P#)</div>
+          <div class="label">Persons(P#)</div>
           <div class="value person" id="sPersons">--</div>
         </div>
         <div class="stat-item">
-          <div class="label">缓存命中</div>
+          <div class="label">Cache Hit</div>
           <div class="value cache" id="sCacheHit">--</div>
         </div>
         <div class="stat-item">
-          <div class="label">emb提取</div>
+          <div class="label">Emb Extract</div>
           <div class="value emb" id="sEmbExtracted">--</div>
         </div>
         <div class="stat-item">
-          <div class="label">冷却跳过</div>
+          <div class="label">Cooldown Skip</div>
           <div class="value" id="sCooldownSkip" style="color:#9e9e9e;">--</div>
         </div>
         <div class="stat-item">
-          <div class="label">帧号</div>
+          <div class="label">Frame</div>
           <div class="value frame" id="sFrame">--</div>
         </div>
         <div class="stat-item">
-          <div class="label">丢帧</div>
+          <div class="label">Dropped</div>
           <div class="value drop" id="sDrop">--</div>
         </div>
         <div class="stat-item">
-          <div class="label">采样数</div>
+          <div class="label">Samples</div>
           <div class="value align" id="sAlignSaved">--</div>
         </div>
         <div class="stat-item">
@@ -424,11 +424,11 @@ body {
           <div class="value" id="sUnkStrong" style="color:#ff5252;">--</div>
         </div>
         <div class="stat-item">
-          <div class="label">已注册</div>
+          <div class="label">Registered</div>
           <div class="value" id="sRegistered" style="color:#00bcd4;">--</div>
         </div>
         <div class="stat-item">
-          <div class="label">候选数</div>
+          <div class="label">Candidates</div>
           <div class="value" id="sCandidates" style="color:#e040fb;">--</div>
         </div>
         <div class="stat-item">
@@ -436,28 +436,28 @@ body {
           <div class="value" id="sReady" style="color:#76ff03;">--</div>
         </div>
         <div class="stat-item">
-          <div class="label">信用达标</div>
+          <div class="label">Credit Pass</div>
           <div class="value" id="sCreditAbove" style="color:#00e676;">--</div>
         </div>
         <div class="stat-item">
-          <div class="label">弱框维持</div>
+          <div class="label">Weak Update</div>
           <div class="value" id="sWeakUpdate" style="color:#ffab40;">--</div>
         </div>
         <div class="stat-item">
-          <div class="label">高分框</div>
+          <div class="label">High Det</div>
           <div class="value" id="sHighDet" style="color:#4fc3f7;">--</div>
         </div>
         <div class="stat-item">
-          <div class="label">弱框数</div>
+          <div class="label">Low Det</div>
           <div class="value" id="sLowDet" style="color:#9e9e9e;">--</div>
         </div>
       </div>
     </div>
 
     <div class="card log-panel">
-      <h2>跟踪日志</h2>
+      <h2>Tracking Log</h2>
       <div class="log-box" id="logBox">
-        <div style="color:#555;">等待启动...</div>
+        <div style="color:#555;">Waiting to start...</div>
       </div>
     </div>
 
@@ -535,7 +535,7 @@ async function startPipeline() {
       body: JSON.stringify(body),
     });
     const data = await res.json();
-    if (!data.ok) { alert('启动失败: ' + data.error); document.getElementById('btnStart').disabled = false; return; }
+    if (!data.ok) { alert('Failed to start: ' + data.error); document.getElementById('btnStart').disabled = false; return; }
 
     isRunning = true;
     document.getElementById('btnStop').disabled = false;
@@ -550,7 +550,7 @@ async function startPipeline() {
     if (statsTimer) clearInterval(statsTimer);
     statsTimer = setInterval(pollStats, 400);
   } catch (e) {
-    alert('请求失败: ' + e.message);
+    alert('Request failed: ' + e.message);
     document.getElementById('btnStart').disabled = false;
   }
 }
