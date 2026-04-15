@@ -1,6 +1,6 @@
 """
-Module 2: BoT-SORT Tracking (无 ReID)
-将逐帧 detections 关联为连续轨迹，输出稳定的 track_id。
+Module 2: BoT-SORT Tracking (without ReID)
+Associate per-frame detections into continuous trajectories, output stable track_id.
 """
 
 from .bot_sort import BoTSORTConfig, BoTSORTTracker

@@ -1,7 +1,7 @@
 """
 Module 1: Face Detection
-从 Ingestion 输出的 Frame 中检测人脸，输出统一的 Detection 结果。
-使用 SCRFD (ONNX Runtime) 作为检测底座，不依赖 insightface 包。
+Detect faces from Ingestion output Frame, output unified Detection results.
+Uses SCRFD (ONNX Runtime) as detection base, no dependency on insightface package.
 """
 
 from .detection import FaceDetection, FrameDetections
