@@ -1,8 +1,8 @@
 """
-Frame 数据结构 —— 整个系统的帧流通单元。
+Frame data structure — The frame circulation unit for the entire system.
 
-图像格式固定为 BGR（OpenCV 原生格式），避免无谓转换开销。
-后续模块如需 RGB 请自行转换。
+Image format is fixed to BGR (OpenCV native format) to avoid unnecessary conversion overhead.
+Downstream modules should convert to RGB themselves if needed.
 """
 
 from __future__ import annotations
@@ -15,19 +15,19 @@ import numpy as np
 
 @dataclass(slots=True)
 class Frame:
-    """一帧画面及其元数据。
+    """A single frame and its metadata.
 
     Attributes:
-        image:        BGR uint8 numpy 数组, shape = (H, W, 3)
-        timestamp_ms: 毫秒级时间戳
-                      - 摄像头模式: 来自单调时钟 (time.monotonic)
-                      - 视频文件模式: 来自视频自身播放位置
-        frame_id:     从 0 开始的递增序号
-        source_id:    标识来源, 如 "camera:0" 或 "file:/path/to/video.mp4"
-        width:        帧宽度 (像素)
-        height:       帧高度 (像素)
-        dropped_frames: 截至当前帧被丢弃的累计帧数
-        extra:        预留扩展字段
+        image:        BGR uint8 numpy array, shape = (H, W, 3)
+        timestamp_ms: Millisecond timestamp
+                      - Camera mode: from monotonic clock (time.monotonic)
+                      - Video file mode: from video container playback position
+        frame_id:     Incrementing sequence number starting from 0
+        source_id:    Source identifier, e.g., "camera:0" or "file:/path/to/video.mp4"
+        width:        Frame width (pixels)
+        height:       Frame height (pixels)
+        dropped_frames: Cumulative dropped frame count up to current frame
+        extra:        Reserved extension field
     """
 
     image: np.ndarray
@@ -40,10 +40,10 @@ class Frame:
     extra: Dict[str, Any] = field(default_factory=dict)
 
     # ------------------------------------------------------------------
-    # 便捷方法
+    # Convenience methods
     # ------------------------------------------------------------------
     def meta_dict(self) -> Dict[str, Any]:
-        """返回不含图像像素的元数据字典（可直接序列化为 JSON）。"""
+        """Return metadata dict without image pixels (directly JSON serializable)."""
         return {
             "timestamp_ms": round(self.timestamp_ms, 3),
             "frame_id": self.frame_id,

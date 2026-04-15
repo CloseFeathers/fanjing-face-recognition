@@ -3,9 +3,9 @@
 """
 Embedding Logger
 
-功能:
-1. 保存每个 embedding 到磁盘 (npy 格式)
-2. 写入 embeddings.jsonl 记录元数据
+Features:
+1. Save each embedding to disk (npy format)
+2. Write embeddings.jsonl to record metadata
 """
 
 from __future__ import annotations
@@ -19,9 +19,9 @@ import numpy as np
 
 class EmbeddingLogger:
     """
-    Embedding 日志记录器
+    Embedding logger
 
-    保存 embedding 到文件并记录元数据
+    Save embeddings to files and record metadata
     """
 
     def __init__(
@@ -30,25 +30,25 @@ class EmbeddingLogger:
         log_path: str = "output/embeddings.jsonl",
     ):
         """
-        初始化 Embedding Logger
+        Initialize Embedding Logger
 
         Args:
-            output_dir: embedding 文件保存目录
-            log_path: JSONL 日志路径
+            output_dir: Directory to save embedding files
+            log_path: JSONL log path
         """
         self.output_dir = output_dir
         self.log_path = log_path
         self._log_file = None
 
     def open(self) -> "EmbeddingLogger":
-        """打开日志文件"""
+        """Open log file."""
         os.makedirs(self.output_dir, exist_ok=True)
         os.makedirs(os.path.dirname(self.log_path), exist_ok=True)
         self._log_file = open(self.log_path, "a", encoding="utf-8")
         return self
 
     def close(self) -> None:
-        """关闭日志文件"""
+        """Close log file."""
         if self._log_file:
             self._log_file.close()
             self._log_file = None
@@ -64,30 +64,30 @@ class EmbeddingLogger:
         save_embedding: bool = True,
     ) -> Optional[str]:
         """
-        记录一个 embedding
+        Log an embedding
 
         Args:
-            track_id: 轨迹 ID
-            frame_id: 帧 ID
-            timestamp_ms: 时间戳
-            embedding: 嵌入向量 [512]
-            quality_score: 质量分数
-            face_image_path: 人脸图像路径
-            save_embedding: 是否保存 embedding 文件
+            track_id: Track ID
+            frame_id: Frame ID
+            timestamp_ms: Timestamp
+            embedding: Embedding vector [512]
+            quality_score: Quality score
+            face_image_path: Face image path
+            save_embedding: Whether to save embedding file
 
         Returns:
-            embedding 文件路径 (如果保存)
+            Embedding file path (if saved)
         """
         embedding_path = None
 
         if save_embedding and embedding is not None:
-            # 保存 embedding
+            # Save embedding
             track_dir = os.path.join(self.output_dir, f"track_{track_id}")
             os.makedirs(track_dir, exist_ok=True)
             embedding_path = os.path.join(track_dir, f"frame_{frame_id}.npy")
             np.save(embedding_path, embedding)
 
-        # 写入日志
+        # Write log
         if self._log_file:
             entry = {
                 "track_id": track_id,

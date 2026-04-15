@@ -1,25 +1,25 @@
 #!/usr/bin/env python3
 """
-Module 1 验收入口 —— 人脸检测预览 + JSONL 日志。
+Module 1 Acceptance Entry — Face detection preview + JSONL logging.
 
-用法:
-  # 先下载模型 (首次)
+Usage:
+  # Download model first (initial setup)
   python scripts/download_model.py
 
-  # 摄像头模式 (按 q 退出)
+  # Camera mode (press q to quit)
   python run_detection.py --camera 0
 
-  # 视频文件模式 - 尽可能快跑完
+  # Video file mode - run as fast as possible
   python run_detection.py --video path/to/video.mp4
 
-  # 视频文件模式 - 按原始帧率实时播放
+  # Video file mode - play at original frame rate
   python run_detection.py --video path/to/video.mp4 --realtime
 
-  # 带 JSONL 日志
+  # With JSONL logging
   python run_detection.py --camera 0 --log
   python run_detection.py --video path/to/video.mp4 --log
 
-  # 指定模型文件 / 阈值 / 检测尺寸 / GPU
+  # Specify model file / threshold / detection size / GPU
   python run_detection.py --camera 0 --model models/det_10g.onnx --det-thresh 0.4 --gpu 0
 """
 
@@ -32,7 +32,7 @@ import sys
 import time
 from pathlib import Path
 
-# Windows 终端 UTF-8 输出保护
+# Windows terminal UTF-8 output protection
 if sys.platform == "win32":
     os.environ.setdefault("PYTHONIOENCODING", "utf-8")
     if hasattr(sys.stdout, "reconfigure"):
@@ -56,7 +56,7 @@ WINDOW_NAME = "Detection Preview"
 # ======================================================================
 
 class DetectionLogger:
-    """将 FrameDetections 以 JSONL 写入文件。"""
+    """Write FrameDetections as JSONL to file."""
 
     def __init__(self, path: str = "output/detections.jsonl") -> None:
         self._path = Path(path)
@@ -85,11 +85,11 @@ class DetectionLogger:
 
 
 # ======================================================================
-# FPS 计算器
+# FPS Counter
 # ======================================================================
 
 class FPSCounter:
-    """1-秒滑动窗口 FPS 计数。"""
+    """1-second sliding window FPS counter."""
 
     def __init__(self) -> None:
         self._start = time.monotonic()
@@ -112,7 +112,7 @@ class FPSCounter:
 
 
 # ======================================================================
-# 摄像头模式
+# Camera Mode
 # ======================================================================
 
 def run_camera(
@@ -120,8 +120,8 @@ def run_camera(
     detector: SCRFDDetector,
     logger: DetectionLogger | None,
 ) -> None:
-    print(f"[Detection] 摄像头模式  device={device}")
-    print("[Detection] 按 q 退出")
+    print(f"[Detection] Camera mode  device={device}")
+    print("[Detection] Press q to quit")
 
     fps_counter = FPSCounter()
     last_dets = None
@@ -132,7 +132,7 @@ def run_camera(
         while True:
             frame = src.read(timeout=5.0)
             if frame is None:
-                print("[Detection] 读取超时, 重试...")
+                print("[Detection] Read timeout, retrying...")
                 continue
 
             dets = detector.detect(frame)
@@ -153,12 +153,12 @@ def run_camera(
 
     cv2.destroyAllWindows()
     if last_dets:
-        print(f"[Detection] 结束. 最后 frame_id={last_dets.frame_id}, "
-              f"丢帧={src.dropped_frames}")
+        print(f"[Detection] Done. last frame_id={last_dets.frame_id}, "
+              f"dropped={src.dropped_frames}")
 
 
 # ======================================================================
-# 视频文件模式
+# Video File Mode
 # ======================================================================
 
 def run_video(
@@ -167,21 +167,21 @@ def run_video(
     detector: SCRFDDetector,
     logger: DetectionLogger | None,
 ) -> None:
-    print(f"[Detection] 视频文件模式  path={path}  realtime={realtime}")
-    print("[Detection] 按 q 退出")
+    print(f"[Detection] Video file mode  path={path}  realtime={realtime}")
+    print("[Detection] Press q to quit")
 
     fps_counter = FPSCounter()
 
     with VideoSource(path=path, realtime=realtime) as src:
-        print(f"[Detection] 视频帧率={src.video_fps:.2f}, "
-              f"总帧数={src.total_frames}")
+        print(f"[Detection] Video fps={src.video_fps:.2f}, "
+              f"total_frames={src.total_frames}")
         cv2.namedWindow(WINDOW_NAME, cv2.WINDOW_NORMAL)
 
         last_dets = None
         while True:
             frame = src.read()
             if frame is None:
-                print("[Detection] 视频播放完毕.")
+                print("[Detection] Video playback finished.")
                 break
 
             dets = detector.detect(frame)
@@ -198,13 +198,13 @@ def run_video(
 
             key = cv2.waitKey(1) & 0xFF
             if key == ord("q"):
-                print("[Detection] 用户中止.")
+                print("[Detection] User aborted.")
                 break
 
     cv2.destroyAllWindows()
     if last_dets:
-        print(f"[Detection] 结束. 最后 frame_id={last_dets.frame_id}, "
-              f"最后 ts={last_dets.timestamp_ms:.1f}ms")
+        print(f"[Detection] Done. last frame_id={last_dets.frame_id}, "
+              f"last ts={last_dets.timestamp_ms:.1f}ms")
 
 
 # ======================================================================
@@ -218,7 +218,7 @@ def main() -> None:
         epilog=__doc__,
     )
 
-    # ---- 输入源 ----
+    # ---- Input Source ----
     grp = parser.add_mutually_exclusive_group(required=True)
     grp.add_argument("--camera", type=int, metavar="DEVICE",
                      help="Camera device index, e.g. 0")
@@ -227,7 +227,7 @@ def main() -> None:
     parser.add_argument("--realtime", action="store_true",
                         help="Play video at original FPS (default: fast-forward)")
 
-    # ---- 检测器参数 ----
+    # ---- Detector Parameters ----
     parser.add_argument("--model", type=str, default="models/det_10g.onnx",
                         help="SCRFD ONNX model path (default: models/det_10g.onnx)")
     parser.add_argument("--det-size", type=int, default=640,
@@ -239,7 +239,7 @@ def main() -> None:
     parser.add_argument("--gpu", type=int, default=-1,
                         help="GPU id, -1 = CPU only (default: -1)")
 
-    # ---- 日志 ----
+    # ---- Logging ----
     parser.add_argument("--log", action="store_true",
                         help="Write detections JSONL to output/detections.jsonl")
     parser.add_argument("--log-path", type=str,
@@ -248,7 +248,7 @@ def main() -> None:
 
     args = parser.parse_args()
 
-    # ---- 加载检测器 ----
+    # ---- Load Detector ----
     det_size = (args.det_size, args.det_size)
     detector = SCRFDDetector(
         model_path=args.model,
@@ -259,7 +259,7 @@ def main() -> None:
     )
     detector.load()
 
-    # ---- 日志 ----
+    # ---- Logging ----
     logger = None
     if args.log:
         logger = DetectionLogger(path=args.log_path)

@@ -1,16 +1,16 @@
 # Copyright (c) 2024
 # Track Template Manager
 """
-Track Template 管理器
+Track Template Manager
 
-功能:
-1. 收集单个 track 的多个 embedding 样本
-2. 聚合生成 track template (平均 / 质量加权平均)
-3. 管理 template 生命周期
+Features:
+1. Collect multiple embedding samples for a single track
+2. Aggregate to generate track template (mean / quality-weighted mean)
+3. Manage template lifecycle
 
-聚合策略:
-- simple_mean: 简单平均，所有样本权重相等
-- quality_weighted: 质量加权平均，quality_score 作为权重
+Aggregation strategies:
+- simple_mean: Simple average, all samples have equal weight
+- quality_weighted: Quality-weighted average, quality_score as weight
 """
 
 from __future__ import annotations
@@ -26,7 +26,7 @@ import numpy as np
 
 @dataclass
 class EmbeddingSample:
-    """单个 embedding 样本"""
+    """Single embedding sample."""
 
     frame_id: int
     timestamp_ms: float
@@ -37,22 +37,22 @@ class EmbeddingSample:
 
 @dataclass
 class TrackTemplate:
-    """Track 的聚合 template"""
+    """Aggregated template for a Track."""
 
     track_id: int
-    template: np.ndarray  # [512] 归一化向量
+    template: np.ndarray  # [512] normalized vector
     sample_count: int
     avg_quality: float
     first_frame_id: int
     last_frame_id: int
     created_at: str = field(default_factory=lambda: datetime.now().isoformat())
 
-    # 可选: 关联的 person_id
+    # Optional: associated person_id
     person_id: Optional[int] = None
     similarity_to_person: Optional[float] = None
 
     def to_dict(self) -> Dict:
-        """转换为可序列化的字典"""
+        """Convert to serializable dictionary."""
         return {
             "track_id": self.track_id,
             "template": self.template.tolist(),
@@ -72,9 +72,9 @@ class TrackTemplate:
 
 class TrackTemplateManager:
     """
-    Track Template 管理器
+    Track Template Manager
 
-    管理多个 track 的 embedding 样本收集和 template 聚合
+    Manage embedding sample collection and template aggregation for multiple tracks
     """
 
     def __init__(
@@ -85,13 +85,13 @@ class TrackTemplateManager:
         log_path: Optional[str] = "output/track_templates.jsonl",
     ):
         """
-        初始化 Track Template Manager
+        Initialize Track Template Manager
 
         Args:
-            min_samples: 生成 template 的最小样本数
-            max_samples: 每个 track 保留的最大样本数
-            aggregation: 聚合方式 ("simple_mean" 或 "quality_weighted")
-            log_path: JSONL 日志路径
+            min_samples: Minimum samples required to generate template
+            max_samples: Maximum samples to retain per track
+            aggregation: Aggregation method ("simple_mean" or "quality_weighted")
+            log_path: JSONL log path
         """
         self.min_samples = min_samples
         self.max_samples = max_samples
@@ -101,21 +101,21 @@ class TrackTemplateManager:
         # track_id -> List[EmbeddingSample]
         self._samples: Dict[int, List[EmbeddingSample]] = {}
 
-        # track_id -> TrackTemplate (已生成的 template)
+        # track_id -> TrackTemplate (generated templates)
         self._templates: Dict[int, TrackTemplate] = {}
 
-        # 日志文件
+        # Log file
         self._log_file = None
 
     def open(self) -> "TrackTemplateManager":
-        """打开日志文件"""
+        """Open log file."""
         if self.log_path:
             os.makedirs(os.path.dirname(self.log_path), exist_ok=True)
             self._log_file = open(self.log_path, "a", encoding="utf-8")
         return self
 
     def close(self) -> None:
-        """关闭日志文件"""
+        """Close log file."""
         if self._log_file:
             self._log_file.close()
             self._log_file = None
@@ -130,23 +130,23 @@ class TrackTemplateManager:
         image_path: Optional[str] = None,
     ) -> Optional[TrackTemplate]:
         """
-        添加一个 embedding 样本
+        Add an embedding sample
 
         Args:
-            track_id: 轨迹 ID
-            frame_id: 帧 ID
-            timestamp_ms: 时间戳
-            embedding: 嵌入向量 [512]
-            quality_score: 质量分数
-            image_path: 保存的图像路径
+            track_id: Track ID
+            frame_id: Frame ID
+            timestamp_ms: Timestamp
+            embedding: Embedding vector [512]
+            quality_score: Quality score
+            image_path: Saved image path
 
         Returns:
-            如果达到 min_samples 并更新了 template，返回 TrackTemplate
+            TrackTemplate if min_samples reached and template updated
         """
         if embedding is None or len(embedding) == 0:
             return None
 
-        # 创建样本
+        # Create sample
         sample = EmbeddingSample(
             frame_id=frame_id,
             timestamp_ms=timestamp_ms,
@@ -155,19 +155,19 @@ class TrackTemplateManager:
             image_path=image_path,
         )
 
-        # 添加到样本列表
+        # Add to sample list
         if track_id not in self._samples:
             self._samples[track_id] = []
 
         samples = self._samples[track_id]
         samples.append(sample)
 
-        # 如果超过 max_samples，按质量排序保留最好的
+        # If exceeds max_samples, keep best by quality
         if len(samples) > self.max_samples:
             samples.sort(key=lambda s: s.quality_score, reverse=True)
             self._samples[track_id] = samples[: self.max_samples]
 
-        # 检查是否可以生成/更新 template
+        # Check if can generate/update template
         if len(self._samples[track_id]) >= self.min_samples:
             template = self._generate_template(track_id)
             if template:
@@ -179,13 +179,13 @@ class TrackTemplateManager:
 
     def _generate_template(self, track_id: int) -> Optional[TrackTemplate]:
         """
-        聚合样本生成 template
+        Aggregate samples to generate template
 
         Args:
-            track_id: 轨迹 ID
+            track_id: Track ID
 
         Returns:
-            TrackTemplate 或 None
+            TrackTemplate or None
         """
         samples = self._samples.get(track_id, [])
         if len(samples) < self.min_samples:
@@ -195,19 +195,19 @@ class TrackTemplateManager:
         qualities = np.array([s.quality_score for s in samples])  # [N]
 
         if self.aggregation == "simple_mean":
-            # 简单平均
+            # Simple average
             template_vec = np.mean(embeddings, axis=0)
         elif self.aggregation == "quality_weighted":
-            # 质量加权平均
-            # 避免权重为 0
+            # Quality-weighted average
+            # Avoid zero weights
             weights = np.clip(qualities, 0.01, None)
             weights = weights / weights.sum()
             template_vec = np.average(embeddings, axis=0, weights=weights)
         else:
-            # 默认简单平均
+            # Default simple average
             template_vec = np.mean(embeddings, axis=0)
 
-        # L2 归一化
+        # L2 normalize
         norm = np.linalg.norm(template_vec)
         if norm > 0:
             template_vec = template_vec / norm
@@ -222,21 +222,21 @@ class TrackTemplateManager:
         )
 
     def get_template(self, track_id: int) -> Optional[TrackTemplate]:
-        """获取指定 track 的 template"""
+        """Get template for specified track."""
         return self._templates.get(track_id)
 
     def get_all_templates(self) -> Dict[int, TrackTemplate]:
-        """获取所有已生成的 templates"""
+        """Get all generated templates."""
         return self._templates.copy()
 
     def get_sample_count(self, track_id: int) -> int:
-        """获取指定 track 的样本数"""
+        """Get sample count for specified track."""
         return len(self._samples.get(track_id, []))
 
     def _log_template(self, template: TrackTemplate) -> None:
-        """写入 JSONL 日志"""
+        """Write to JSONL log."""
         if self._log_file:
-            # 不在日志中保存完整的 512 维向量，只保存元数据
+            # Don't save full 512-dim vector in log, only metadata
             log_entry = {
                 "track_id": template.track_id,
                 "sample_count": template.sample_count,
@@ -252,11 +252,11 @@ class TrackTemplateManager:
             self._log_file.flush()
 
     def clear_track(self, track_id: int) -> None:
-        """清除指定 track 的数据"""
+        """Clear data for specified track."""
         self._samples.pop(track_id, None)
         self._templates.pop(track_id, None)
 
     def reset(self) -> None:
-        """重置所有数据"""
+        """Reset all data."""
         self._samples.clear()
         self._templates.clear()

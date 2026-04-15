@@ -1,15 +1,15 @@
 """
-Module 5: Session 内身份状态机 (Identity State Machine)
+Module 5: Session Identity State Machine
 
-三态:
-  KNOWN_STRONG:    明确匹配已注册身份 (R#y), 直接绑定
-  AMBIGUOUS:       模糊区间, 继续在当前 session 观察, 可随 template 改善转变
-  UNKNOWN_STRONG:  明确不是已有身份; 若 register_ready 则当前 session 自动注册
+Tri-state:
+  KNOWN_STRONG:    Clear match to registered identity (R#y), direct binding
+  AMBIGUOUS:       Fuzzy range, continue observing in current session, may transition as template improves
+  UNKNOWN_STRONG:  Clearly not an existing identity; auto-register in current session if register_ready
 
-判定逻辑 (基于与 RegisteredDB 的 top1/top2 相似度):
-  KNOWN_STRONG:    top1 >= known_threshold 且 margin 足够
-  AMBIGUOUS:       top1 在 [band_threshold, known_threshold) 或 margin 不足
-  UNKNOWN_STRONG:  top1 < band_threshold 或 正式库为空
+Judgment logic (based on top1/top2 similarity with RegisteredDB):
+  KNOWN_STRONG:    top1 >= known_threshold and sufficient margin
+  AMBIGUOUS:       top1 in [band_threshold, known_threshold) or insufficient margin
+  UNKNOWN_STRONG:  top1 < band_threshold or official DB is empty
 """
 
 from __future__ import annotations
@@ -35,7 +35,7 @@ class IdentityState(str, Enum):
 
 @dataclass
 class IdentityDecision:
-    """身份判定结果"""
+    """Identity decision result."""
     session_person_id: int
     identity_state: IdentityState
     top1_known_person_id: Optional[int]
@@ -75,7 +75,7 @@ class IdentityConfig:
 
 
 class RegisteredPersonDB:
-    """已注册正式身份库。支持 session 内自动注册 + 跨 session 持久化。"""
+    """Registered official identity database. Supports session auto-registration + cross-session persistence."""
 
     def __init__(self, db_dir: Optional[str] = None):
         self._persons: Dict[int, np.ndarray] = {}
@@ -89,7 +89,7 @@ class RegisteredPersonDB:
         session_person_id: int,
         metadata: Optional[Dict] = None,
     ) -> int:
-        """注册新身份，返回 registered_identity_id (R#y)。"""
+        """Register new identity, returns registered_identity_id (R#y)."""
         rid = self._next_id
         self._next_id += 1
 
@@ -106,7 +106,7 @@ class RegisteredPersonDB:
         return rid
 
     def add_person(self, template: np.ndarray, metadata: Optional[Dict] = None) -> int:
-        """兼容旧接口 (手动添加)。"""
+        """Compatible with old interface (manual add)."""
         return self.register(template, session_person_id=-1, metadata=metadata)
 
     def get_template(self, person_id: int) -> Optional[np.ndarray]:
@@ -125,7 +125,7 @@ class RegisteredPersonDB:
         return len(self._persons)
 
     def update_template(self, person_id: int, new_template: np.ndarray, weight: float = 0.1):
-        """保守更新已注册身份的模板。"""
+        """Conservatively update registered identity template."""
         old = self._persons.get(person_id)
         if old is None:
             return
@@ -137,7 +137,7 @@ class RegisteredPersonDB:
         self._metadata.setdefault(person_id, {})["last_updated_at"] = time.time()
 
     def check_and_merge(self, updated_rid: int, merge_threshold: float = 0.75) -> Optional[Tuple[int, int]]:
-        """检查 updated_rid 是否与其他身份相似度超过合并阈值。
+        """Check if updated_rid similarity exceeds merge threshold with other identities.
 
         Returns:
             (main_rid, absorbed_rid) if merged, else None
@@ -159,7 +159,7 @@ class RegisteredPersonDB:
         return None
 
     def _merge(self, main_rid: int, absorbed_rid: int):
-        """将 absorbed_rid 吸收进 main_rid（不丢失信息）。"""
+        """Absorb absorbed_rid into main_rid (without losing information)."""
         main_tmpl = self._persons[main_rid]
         abs_tmpl = self._persons[absorbed_rid]
 
@@ -181,7 +181,7 @@ class RegisteredPersonDB:
         self._metadata.pop(absorbed_rid, None)
 
     def save(self):
-        """持久化到磁盘 (templates + metadata)，使用临时文件 + 原子替换。"""
+        """Persist to disk (templates + metadata), using temp file + atomic replace."""
         os.makedirs(self._db_dir, exist_ok=True)
         templates_path = os.path.join(self._db_dir, "templates.npz")
         meta_path = os.path.join(self._db_dir, "metadata.json")
@@ -210,7 +210,7 @@ class RegisteredPersonDB:
         logger.info("[RegisteredDB] saved %s identities to %s", len(ids), self._db_dir)
 
     def load(self):
-        """从磁盘加载已注册身份。"""
+        """Load registered identities from disk."""
         templates_path = os.path.join(self._db_dir, "templates.npz")
         meta_path = os.path.join(self._db_dir, "metadata.json")
 
@@ -238,7 +238,7 @@ class RegisteredPersonDB:
 
 
 class IdentityJudge:
-    """Session 内身份判定器。"""
+    """Session identity judge."""
 
     def __init__(
         self,

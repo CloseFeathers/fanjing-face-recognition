@@ -1,12 +1,12 @@
 """
-Web 测试前端后端 —— Flask MJPEG 流 + REST API + 实时统计。
+Web Frontend/Backend — Flask MJPEG Stream + REST API + Real-time Statistics.
 
-Module 4b: 性能优化版
-- 细粒度计时: align_ms, sample_ms, emb_ms, template_ms, person_ms
-- Embedding 缓存: 同一 face_image_path 不重复推理
-- Per-track cooldown: 每 500ms 或 N 帧限频
-- 只在 detect=Y + 新样本时触发 embedding
-- Fail-open: embedding 慢或出错不拖垮主视频流
+Module 4b: Performance Optimized Version
+- Fine-grained timing: align_ms, sample_ms, emb_ms, template_ms, person_ms
+- Embedding cache: avoid redundant inference for same face_image_path
+- Per-track cooldown: throttle every 500ms or N frames
+- Only trigger embedding on detect=Y + new sample
+- Fail-open: slow/failed embedding does not block main video stream
 """
 
 from __future__ import annotations
@@ -76,12 +76,12 @@ try:
     SpeakingAnalyzer = _SpeakingAnalyzer
     SPEAKING_AVAILABLE = True
 except ImportError as e:
-    logger.warning(f"[Warning] Speaking 模块不可用 (mediapipe 未安装): {e}")
+    logger.warning(f"[Warning] Speaking module unavailable (mediapipe not installed): {e}")
 from ..alignment.aligner import FaceAligner
 from ..alignment.quality import QualityConfig, QualityGate
 from ..alignment.track_sampler import TrackSampler
 
-# Embedding 模块 (可选导入)
+# Embedding module (optional import)
 EMBEDDING_AVAILABLE = False
 MODULE5_AVAILABLE = False
 ArcFaceEmbedder = None
@@ -116,9 +116,9 @@ try:
     EmbeddingLogger = _EmbeddingLogger
     EMBEDDING_AVAILABLE = True
 except ImportError as e:
-    logger.warning(f"[Warning] Embedding 模块不可用: {e}")
+    logger.warning(f"[Warning] Embedding module unavailable: {e}")
 
-# Module 5: 三态身份判定 + 候选池
+# Module 5: Tri-state identity judgment + candidate pool
 try:
     from ..embedding import (
         CandidateConfig as _CandidateConfig,
@@ -150,7 +150,7 @@ try:
     EmbeddingSample = _EmbeddingSample
     MODULE5_AVAILABLE = True
 except ImportError as e:
-    logger.warning(f"[Warning] Module 5 不可用: {e}")
+    logger.warning(f"[Warning] Module 5 unavailable: {e}")
 
 app = Flask(
     __name__,
@@ -181,7 +181,7 @@ def _add_security_headers(response):
 
 
 # ======================================================================
-# 全局状态
+# Global State
 # ======================================================================
 
 class PipelineState:
@@ -199,36 +199,36 @@ class PipelineState:
         self.align_enabled = False
         self.sample_min_det = 0.60
 
-        # 说话状态检测
+        # Speaking state detection
         self.speaking_enabled: bool = False
         self.mouth_worker: Optional[MouthWorker] = None
         self.mouth_states: Dict[int, str] = {}
         self._last_frame = None
         self.show_hud: bool = True
 
-        # Embedding 模块 (Module 4)
+        # Embedding module (Module 4)
         self.embed_enabled = False
         self.embedder = None
         self.template_mgr = None
         self.person_registry = None
         self.emb_logger = None
 
-        # Embedding 缓存: face_image_path -> embedding (np.ndarray)
+        # Embedding cache: face_image_path -> embedding (np.ndarray)
         self._embed_cache: Dict[str, np.ndarray] = {}
-        # Per-track 状态
+        # Per-track state
         self._track_embed_state: Dict[int, TrackEmbedState] = {}
-        # Cooldown 配置
-        self.embed_cooldown_ms: float = 1000.0  # 每 track 1000ms 限频 (更激进)
-        # embed_cooldown_frames 已移除，仅用 cooldown_ms 控制
-        self.max_embed_per_frame: int = 1       # 每帧最多处理 1 个 embedding
-        self.max_embed_per_track: int = 5       # 每 track 最多提取 5 次 embedding（足够生成 template）
+        # Cooldown configuration
+        self.embed_cooldown_ms: float = 1000.0  # Per-track 1000ms throttle (aggressive)
+        # embed_cooldown_frames removed, only use cooldown_ms
+        self.max_embed_per_frame: int = 1       # Max 1 embedding per frame
+        self.max_embed_per_track: int = 5       # Max 5 embeddings per track (enough for template)
 
-        # track_id -> person_id 映射 (用于显示)
+        # track_id -> person_id mapping (for display)
         self.track_to_person: Dict[int, int] = {}
-        # track_id -> similarity 映射 (用于显示)
+        # track_id -> similarity mapping (for display)
         self.track_similarities: Dict[int, float] = {}
 
-        # 基础统计
+        # Basic statistics
         self.fps = 0.0
         self.detect_ms = 0.0
         self.track_ms = 0.0
@@ -243,60 +243,60 @@ class PipelineState:
         self.source_id = ""
         self.did_detect = True
 
-        # 细粒度计时统计 (Module 4b)
-        self.align_ms = 0.0      # 对齐耗时
-        self.sample_ms = 0.0     # 采样保存耗时
-        self.emb_ms = 0.0        # embedding 推理耗时
-        self.template_ms = 0.0   # template 更新耗时
-        self.person_ms = 0.0     # person matching 耗时
-        self.encode_ms = 0.0     # JPEG 编码耗时
-        self.total_frame_ms = 0.0  # 总帧处理耗时
+        # Fine-grained timing statistics (Module 4b)
+        self.align_ms = 0.0      # Alignment time
+        self.sample_ms = 0.0     # Sample save time
+        self.emb_ms = 0.0        # Embedding inference time
+        self.template_ms = 0.0   # Template update time
+        self.person_ms = 0.0     # Person matching time
+        self.encode_ms = 0.0     # JPEG encoding time
+        self.total_frame_ms = 0.0  # Total frame processing time
 
-        # Alignment 统计
+        # Alignment statistics
         self.align_evaluated = 0
         self.align_passed = 0
         self.align_saved = 0
 
-        # Embedding 统计 (增强)
+        # Embedding statistics (enhanced)
         self.embed_extracted = 0
         self.templates_created = 0
         self.emb_error_count = 0
         self.last_error = ""
 
-        # 缓存统计 (新增)
+        # Cache statistics (new)
         self.emb_cache_hit = 0
         self.emb_cache_miss = 0
-        self.emb_cooldown_skip = 0  # 因 cooldown 跳过的次数
+        self.emb_cooldown_skip = 0  # Skipped due to cooldown
 
-        # Embedding 触发日志 (新增)
+        # Embedding trigger log (new)
         self.embed_trigger_log: list[dict] = []
         self.embed_trigger_log_max = 100
 
-        # ======== Credit Gate (信用积分制) ========
+        # ======== Credit Gate (credit score system) ========
         self.credit_gate_cfg = CreditGateConfig()
 
-        # ======== 异步身份 Worker ========
+        # ======== Async Identity Worker ========
         self.identity_worker: Optional["IdentityWorker"] = None
 
-        # ======== MODULE 5: 三态身份判定 + 候选池 ========
-        self.m5_cfg = Module5Config()  # 默认关闭
-        self.registered_db = None      # RegisteredPersonDB (正式身份库)
-        self.identity_judge = None     # IdentityJudge (三态判定器)
-        self.candidate_pool = None     # FaceCandidatePool (候选池)
+        # ======== MODULE 5: Tri-state identity judgment + candidate pool ========
+        self.m5_cfg = Module5Config()  # Disabled by default
+        self.registered_db = None      # RegisteredPersonDB (official identity db)
+        self.identity_judge = None     # IdentityJudge (tri-state judge)
+        self.candidate_pool = None     # FaceCandidatePool (candidate pool)
         # session_person_id -> IdentityState
         self.person_identity_states: Dict[int, str] = {}
         # session_person_id -> candidate_id
         self.person_to_candidate: Dict[int, int] = {}
         # session_person_id -> registered_identity_id (P#x → R#y)
         self.person_to_registered: Dict[int, int] = {}
-        # Module 5 统计
+        # Module 5 statistics
         self.m5_known_strong_count = 0
         self.m5_ambiguous_count = 0
         self.m5_unknown_strong_count = 0
         self.m5_registered_count = 0
         self.m5_candidate_count = 0
         self.m5_ready_candidate_count = 0
-        # AMBIGUOUS 超时注册
+        # AMBIGUOUS timeout registration
         self._ambiguous_since: Dict[int, float] = {}
         self.amb_timeout_sec: float = 15.0
 
@@ -306,7 +306,7 @@ class PipelineState:
         self.log_entries: list[dict] = []
         self.log_max = 200
 
-        # 线程安全: identity worker 写入后原子替换引用，主线程只读快照
+        # Thread safety: identity worker writes then atomically replaces reference, main thread only reads snapshot
         self._identity_snapshot: dict = {
             "track_to_person": {},
             "track_similarities": {},
@@ -315,13 +315,13 @@ class PipelineState:
         }
 
     def get_track_state(self, track_id: int) -> TrackEmbedState:
-        """获取或创建 track 的 embedding 状态"""
+        """Get or create embedding state for a track."""
         if track_id not in self._track_embed_state:
             self._track_embed_state[track_id] = TrackEmbedState()
         return self._track_embed_state[track_id]
 
     def check_cooldown(self, track_id: int, current_time: float, current_frame: int) -> bool:
-        """检查是否在 cooldown 中。返回 True 表示可以执行 embedding"""
+        """Check if in cooldown. Returns True if embedding can proceed."""
         ts = self.get_track_state(track_id)
 
         time_elapsed = (current_time - ts.last_embed_time) * 1000
@@ -330,22 +330,22 @@ class PipelineState:
         return True
 
     def update_embed_time(self, track_id: int, current_time: float, current_frame: int):
-        """更新 track 的 embedding 时间"""
+        """Update track's embedding timestamp."""
         ts = self.get_track_state(track_id)
         ts.last_embed_time = current_time
         ts.last_embed_frame = current_frame
 
     def get_cached_embedding(self, path: str) -> Optional[np.ndarray]:
-        """获取缓存的 embedding"""
+        """Get cached embedding."""
         return self._embed_cache.get(path)
 
     def set_cached_embedding(self, path: str, embedding: np.ndarray):
-        """设置缓存的 embedding"""
+        """Set cached embedding."""
         self._embed_cache[path] = embedding
 
     def log_embed_trigger(self, frame_id: int, track_id: int, reason: str,
                           details: Optional[str] = None):
-        """记录 embedding 触发日志"""
+        """Log embedding trigger event."""
         entry = {
             "frame_id": frame_id,
             "track_id": track_id,
@@ -399,7 +399,7 @@ class PipelineState:
                 logger.error(f"[Stats] template count error: {e}")
 
     def record_emb_error(self, error_msg: str):
-        """记录 embedding 错误"""
+        """Record embedding error."""
         self.emb_error_count += 1
         self.last_error = error_msg[:200]
 
@@ -420,7 +420,7 @@ class PipelineState:
         self.dropped_frames = 0
         self.did_detect = True
 
-        # 细粒度计时重置
+        # Fine-grained timing reset
         self.align_ms = 0.0
         self.sample_ms = 0.0
         self.emb_ms = 0.0
@@ -437,12 +437,12 @@ class PipelineState:
         self.emb_error_count = 0
         self.last_error = ""
 
-        # 缓存统计重置
+        # Cache statistics reset
         self.emb_cache_hit = 0
         self.emb_cache_miss = 0
         self.emb_cooldown_skip = 0
 
-        # Module 5 统计重置
+        # Module 5 statistics reset
         self.person_identity_states.clear()
         self.person_to_candidate.clear()
         self.person_to_registered.clear()
@@ -502,14 +502,14 @@ def ensure_detector(model_path="models/det_10g.onnx",
 
 
 # ======================================================================
-# IdentityWorker: 异步身份链路 (后台单线程)
+# IdentityWorker: Async Identity Pipeline (Single Background Thread)
 # ======================================================================
 
 class IdentityWorker:
-    """将对齐→质量→信用→采样→embedding→模板→person→M5 放入后台线程。
+    """Move align→quality→credit→sample→embedding→template→person→M5 to background thread.
 
-    主线程 submit() 最新的 (frame_image, ft, stracks) 到任务槽,
-    worker 线程取走并执行 _alignment_step。latest-only: 新帧覆盖旧帧。
+    Main thread submit() latest (frame_image, ft, stracks) to task slot,
+    worker thread takes and executes _alignment_step. Latest-only: new frame overwrites old.
     """
 
     def __init__(self):
@@ -534,7 +534,7 @@ class IdentityWorker:
             self._thread = None
 
     def submit(self, frame_image, ft, active_stracks):
-        """覆写式提交: 新帧直接覆盖旧的待处理帧。"""
+        """Overwrite-style submit: new frame directly overwrites pending frame."""
         with self._lock:
             self._pending = (frame_image, ft, active_stracks)
         self._event.set()
@@ -561,31 +561,31 @@ class IdentityWorker:
 
 
 # ======================================================================
-# 对齐 + Embedding 步骤 (性能优化版)
+# Alignment + Embedding Step (Performance Optimized)
 # ======================================================================
 
 def _alignment_step(frame_image, ft, active_stracks=None):
-    """对检测帧中 confirmed + 有 kps5 的 track 执行对齐采样和 embedding 提取。
+    """Execute alignment sampling and embedding extraction for confirmed tracks with kps5.
 
-    性能优化 (Module 4b):
-    1. 只在 detect=Y 时执行
-    2. 只在有新的 quality_passed 样本时触发 embedding
-    3. Per-track cooldown 限频 (1000ms)
-    4. 每帧最多处理 1 个 embedding (避免多人时雪崩)
-    5. 每 track 最多提取 N 次 embedding (足够生成 template)
-    6. 基于 track_id 缓存 embedding (同一 track 复用)
+    Performance Optimization (Module 4b):
+    1. Only execute on detect=Y frames
+    2. Only trigger embedding when new quality_passed sample exists
+    3. Per-track cooldown throttle (1000ms)
+    4. Max 1 embedding per frame (avoid avalanche with many faces)
+    5. Max N embeddings per track (enough for template generation)
+    6. Cache embedding by track_id (reuse for same track)
 
-    Credit Gate (信用积分制, 替代 Face Gating):
-    7. quality 通过 → credit += increment; 失败 → credit -= decrement
-    8. credit >= threshold 才允许 embedding
-    9. credit 不足时仍采样 (积累样本), 但不做 embedding
-    10. 不 REMOVE 任何轨迹
+    Credit Gate (credit score system, replaces Face Gating):
+    7. quality pass → credit += increment; fail → credit -= decrement
+    8. credit >= threshold allows embedding
+    9. Still sample when credit insufficient (accumulate samples), but skip embedding
+    10. Never REMOVE any tracks
     """
-    # 如果不是检测帧，跳过整个步骤
+    # Skip entire step if not a detection frame
     if not ft.did_detect:
         return
 
-    # 如果 alignment 未启用，跳过
+    # Skip if alignment not enabled
     if not state.align_enabled:
         return
 
@@ -597,7 +597,7 @@ def _alignment_step(frame_image, ft, active_stracks=None):
     if not all([tracker, aligner, qgate, sampler]):
         return
 
-    # Embedding 组件 (可能为 None)
+    # Embedding components (may be None)
     embedder = state.embedder if state.embed_enabled else None
     template_mgr = state.template_mgr if state.embed_enabled else None
     person_registry = state.person_registry if state.embed_enabled else None
@@ -607,14 +607,14 @@ def _alignment_step(frame_image, ft, active_stracks=None):
     current_frame = ft.frame_id
     credit_cfg = state.credit_gate_cfg
 
-    # 累计计时
+    # Accumulated timing
     total_align_ms = 0.0
     total_sample_ms = 0.0
     total_emb_ms = 0.0
     total_template_ms = 0.0
     total_person_ms = 0.0
 
-    # 每帧 embedding 计数限制
+    # Per-frame embedding count limit
     embed_count_this_frame = 0
 
     stracks = active_stracks if active_stracks is not None else tracker.last_active_stracks
@@ -622,13 +622,13 @@ def _alignment_step(frame_image, ft, active_stracks=None):
         if strack.state != TrackState.CONFIRMED:
             continue
 
-        # kps5/det_score 缺失 → 扣信用, 跳过
+        # kps5/det_score missing → deduct credit, skip
         if strack.kps5 is None or strack.det_score is None:
             if credit_cfg.enabled:
                 strack.face_valid_credit = max(0.0, strack.face_valid_credit - credit_cfg.credit_decrement)
             continue
 
-        # 阈值 D: 弱框跳过 alignment (但在 tracker 中仍有用)
+        # Threshold D: weak box skip alignment (but still useful in tracker)
         if strack.det_score < state.sample_min_det:
             if credit_cfg.enabled:
                 strack.face_valid_credit = max(0.0, strack.face_valid_credit - credit_cfg.credit_decrement)
@@ -637,7 +637,7 @@ def _alignment_step(frame_image, ft, active_stracks=None):
         track_id = strack.track_id
         ts = state.get_track_state(track_id)
 
-        # Step 1: 对齐
+        # Step 1: Alignment
         t0 = time.monotonic()
         try:
             aligned = aligner.align(frame_image, strack.kps5)
@@ -650,7 +650,7 @@ def _alignment_step(frame_image, ft, active_stracks=None):
             continue
         total_align_ms += (time.monotonic() - t0) * 1000
 
-        # Step 2: 质量评估
+        # Step 2: Quality evaluation
         try:
             bbox = strack.bbox_xyxy_clipped(ft.width, ft.height)
             quality = qgate.evaluate(aligned, bbox, strack.det_score, strack.kps5)
@@ -658,7 +658,7 @@ def _alignment_step(frame_image, ft, active_stracks=None):
             state.record_emb_error(f"quality: {e}")
             continue
 
-        # Step 3: 更新信用分 (Credit Gate)
+        # Step 3: Update credit score (Credit Gate)
         if credit_cfg.enabled:
             if quality.passed:
                 strack.face_valid_credit = min(
@@ -671,7 +671,7 @@ def _alignment_step(frame_image, ft, active_stracks=None):
                     strack.face_valid_credit - credit_cfg.credit_decrement,
                 )
 
-        # Step 4: 采样 (quality 通过就采样, 不管信用分)
+        # Step 4: Sampling (sample if quality passed, regardless of credit)
         t0 = time.monotonic()
         info = None
         if quality.passed:
@@ -689,7 +689,7 @@ def _alignment_step(frame_image, ft, active_stracks=None):
                 state.record_emb_error(f"sampler: {e}")
         total_sample_ms += (time.monotonic() - t0) * 1000
 
-        # quality 不通过 → 跳过 embedding, 使用缓存
+        # Quality failed → skip embedding, use cache
         if not quality.passed:
             state.log_embed_trigger(current_frame, track_id, EmbedReason.SKIPPED_QUALITY_FAIL)
             if ts.cached_person_id is not None:
@@ -698,7 +698,7 @@ def _alignment_step(frame_image, ft, active_stracks=None):
                     state.track_similarities[track_id] = ts.cached_similarity
             continue
 
-        # 没有新样本 → 使用缓存
+        # No new sample → use cache
         if info is None:
             state.log_embed_trigger(current_frame, track_id, EmbedReason.SKIPPED_NO_NEW_SAMPLE)
             if ts.cached_person_id is not None:
@@ -707,12 +707,12 @@ def _alignment_step(frame_image, ft, active_stracks=None):
                     state.track_similarities[track_id] = ts.cached_similarity
             continue
 
-        # embedding 未启用
+        # Embedding not enabled
         if embedder is None:
             state.log_embed_trigger(current_frame, track_id, EmbedReason.SKIPPED_EMBED_DISABLED)
             continue
 
-        # Step 5: Credit Gate — 信用分不足, 跳过 embedding
+        # Step 5: Credit Gate — insufficient credit, skip embedding
         if credit_cfg.enabled and strack.face_valid_credit < credit_cfg.credit_threshold:
             state.log_embed_trigger(current_frame, track_id, EmbedReason.SKIPPED_LOW_CREDIT,
                                    f"credit={strack.face_valid_credit:.1f}<{credit_cfg.credit_threshold}")
@@ -722,7 +722,7 @@ def _alignment_step(frame_image, ft, active_stracks=None):
                     state.track_similarities[track_id] = ts.cached_similarity
             continue
 
-        # Step 6: 每帧 embedding 数量限制
+        # Step 6: Per-frame embedding count limit
         if embed_count_this_frame >= state.max_embed_per_frame:
             state.log_embed_trigger(current_frame, track_id, EmbedReason.SKIPPED_COOLDOWN,
                                    "max_per_frame reached")
@@ -732,7 +732,7 @@ def _alignment_step(frame_image, ft, active_stracks=None):
                     state.track_similarities[track_id] = ts.cached_similarity
             continue
 
-        # Step 7: 每 track embedding 次数限制 (含条件解锁)
+        # Step 7: Per-track embedding count limit (with conditional unlock)
         if ts.embed_count >= state.max_embed_per_track:
             should_unlock = False
             if state.m5_cfg.enabled:
@@ -754,7 +754,7 @@ def _alignment_step(frame_image, ft, active_stracks=None):
                 state.emb_cache_hit += 1
                 continue
 
-        # Step 8: Cooldown 检查
+        # Step 8: Cooldown check
         if not state.check_cooldown(track_id, current_time, current_frame):
             state.emb_cooldown_skip += 1
             state.log_embed_trigger(current_frame, track_id, EmbedReason.SKIPPED_COOLDOWN)
@@ -764,7 +764,7 @@ def _alignment_step(frame_image, ft, active_stracks=None):
                     state.track_similarities[track_id] = ts.cached_similarity
             continue
 
-        # Step 9: 执行 embedding 推理
+        # Step 9: Execute embedding inference
         state.emb_cache_miss += 1
         t0 = time.monotonic()
         try:
@@ -778,7 +778,7 @@ def _alignment_step(frame_image, ft, active_stracks=None):
         if embedding is None:
             continue
 
-        # 更新统计和状态
+        # Update statistics and state
         state.embed_extracted += 1
         embed_count_this_frame += 1
         ts.embed_count += 1
@@ -789,7 +789,7 @@ def _alignment_step(frame_image, ft, active_stracks=None):
 
         face_path = info.save_path
 
-        # Step 10: 记录 embedding (独立 try-except)
+        # Step 10: Log embedding (separate try-except)
         if emb_logger is not None:
             try:
                 emb_logger.log(
@@ -803,7 +803,7 @@ def _alignment_step(frame_image, ft, active_stracks=None):
             except Exception as e:
                 state.record_emb_error(f"emb_logger: {e}")
 
-        # Step 11: 添加到 track template manager (计时)
+        # Step 11: Add to track template manager (timed)
         template = None
         if template_mgr is not None:
             t0 = time.monotonic()
@@ -820,24 +820,24 @@ def _alignment_step(frame_image, ft, active_stracks=None):
                 state.record_emb_error(f"template_mgr: {e}")
             total_template_ms += (time.monotonic() - t0) * 1000
 
-        # Step 12: Person matching (只在 template 更新时触发, 计时)
+        # Step 12: Person matching (only triggered on template update, timed)
         assignment = None
         if template is not None and person_registry is not None:
             t0 = time.monotonic()
             try:
                 assignment = person_registry.assign(template)
-                # 更新全局映射和缓存
+                # Update global mapping and cache
                 state.track_to_person[track_id] = assignment.person_id
                 state.track_similarities[track_id] = assignment.top1_similarity
                 ts.cached_person_id = assignment.person_id
                 ts.cached_similarity = assignment.top1_similarity
-                # 标记 linked_person (Face Gating)
+                # Mark linked_person (Face Gating)
                 strack.linked_person = True
             except Exception as e:
                 state.record_emb_error(f"person_registry: {e}")
             total_person_ms += (time.monotonic() - t0) * 1000
 
-        # Step 13: M5 身份判定 + 自动注册
+        # Step 13: M5 identity judgment + auto-registration
         if (state.m5_cfg.enabled and MODULE5_AVAILABLE and
             assignment is not None and state.identity_judge is not None):
             try:
@@ -942,7 +942,7 @@ def _alignment_step(frame_image, ft, active_stracks=None):
             except Exception as e:
                 state.record_emb_error(f"module5: {e}")
 
-    # 更新 Module 5 统计
+    # Update Module 5 statistics
     if state.m5_cfg.enabled and state.identity_judge is not None:
         try:
             counts = state.identity_judge.get_state_counts()
@@ -989,11 +989,11 @@ def _alignment_step(frame_image, ft, active_stracks=None):
 
 
 # ======================================================================
-# MJPEG 帧生成器
+# MJPEG Frame Generator
 # ======================================================================
 
 def _get_person_name(pid):
-    """从内存缓存或 RegisteredPersonDB metadata 获取名字。"""
+    """Get name from memory cache or RegisteredPersonDB metadata."""
     name = state._person_names.get(pid, "")
     if name:
         return name
@@ -1037,7 +1037,7 @@ def _generate_frames():
         det = state.detector
         tracker = state.tracker
 
-        # 主渲染逻辑
+        # Main rendering logic
         try:
             if det is None or not det.is_loaded or tracker is None:
                 display = frame.image.copy()
@@ -1048,8 +1048,8 @@ def _generate_frames():
                 state.update_stats_from_ft(ft, dropped)
                 state.append_log(ft.to_dict())
 
-                # Alignment + Embedding (异步后台线程)
-                # 只在有 CONFIRMED track 且对齐已启用时才提交
+                # Alignment + Embedding (async background thread)
+                # Only submit when CONFIRMED tracks exist and alignment is enabled
                 if do_det and state.identity_worker is not None and state.align_enabled:
                     confirmed = [t for t in tracker.last_active_stracks
                                  if t.state == TrackState.CONFIRMED
@@ -1059,7 +1059,7 @@ def _generate_frames():
                             frame.image, ft, confirmed
                         )
 
-                # 说话状态检测 (异步 MouthWorker)
+                # Speaking state detection (async MouthWorker)
                 if state.mouth_worker is not None:
                     for strack in tracker.last_active_stracks:
                         if strack.state == TrackState.CONFIRMED and strack.det_score is not None:
@@ -1072,14 +1072,14 @@ def _generate_frames():
 
                 det_faces = state.num_faces
 
-                # 读取 identity worker 的快照（原子引用读取，无锁）
+                # Read identity worker snapshot (atomic reference read, lock-free)
                 _snap = state._identity_snapshot
                 _snap_tp = _snap["track_to_person"]
                 _snap_ts = _snap["track_similarities"]
                 _snap_is = _snap["person_identity_states"]
                 _snap_pr = _snap["person_to_registered"]
 
-                # 缓存 persons 数据供 /api/persons 使用（避免跨线程访问 tracker）
+                # Cache persons data for /api/persons (avoid cross-thread tracker access)
                 try:
                     import base64 as _b64p
 
@@ -1118,7 +1118,7 @@ def _generate_frames():
                 except Exception:
                     pass
 
-                # 绘制显示
+                # Draw display
                 display = draw_tracks(
                     frame.image,
                     ft,
@@ -1130,7 +1130,7 @@ def _generate_frames():
                     show_similarity=state.embed_enabled,
                     track_similarities=_snap_ts if state.embed_enabled else None,
                     person_count=state.num_persons,
-                    # Module 5 参数
+                    # Module 5 parameters
                     person_identity_states=_snap_is if state.m5_cfg.enabled else None,
                     person_to_candidate=state.person_to_candidate if state.m5_cfg.enabled else None,
                     person_to_registered=_snap_pr if state.m5_cfg.enabled else None,
@@ -1142,7 +1142,7 @@ def _generate_frames():
             logger.error(f"[Error] frame processing: {e}")
             display = frame.image.copy()
 
-        # 编码 (计时)
+        # Encoding (timed)
         encode_start = time.monotonic()
         try:
             encode_params = [cv2.IMWRITE_JPEG_QUALITY, 80]
@@ -1158,10 +1158,10 @@ def _generate_frames():
             logger.error(f"[Error] encoding: {e}")
             continue
 
-        # 总帧时间
+        # Total frame time
         state.total_frame_ms = state.total_frame_ms * 0.7 + (time.monotonic() - frame_start) * 1000 * 0.3
 
-    # 流结束
+    # Stream ended
     try:
         black = np.zeros((360, 640, 3), dtype=np.uint8)
         cv2.putText(black, "Stream ended", (180, 190),
@@ -1178,7 +1178,7 @@ def _generate_frames():
 
 
 # ======================================================================
-# 路由
+# Routes
 # ======================================================================
 
 @app.route("/")
@@ -1230,7 +1230,7 @@ def video_feed():
 @require_api_key
 def api_start():
     data = request.get_json(force=True)
-    logger.debug("[/api/start] 请求参数: %s", json.dumps(data, ensure_ascii=False))
+    logger.debug("[/api/start] Request params: %s", json.dumps(data, ensure_ascii=False))
 
     mode = data.get("mode", "camera")
     if mode not in ("camera", "video"):
@@ -1245,7 +1245,7 @@ def api_start():
         return jsonify({"ok": False, "error": str(e)}), 400
     model = str(model_path)
 
-    # 四阈值分离 (带边界约束)
+    # Four-threshold separation (with boundary constraints)
     detector_emit_min_det = max(0.01, min(1.0, float(data.get("detector_emit_min_det", 0.15))))
     track_new_high_thres = max(0.01, min(1.0, float(data.get("track_new_high_thres", 0.50))))
     track_update_low_thres = max(0.01, min(1.0, float(data.get("track_update_low_thres", 0.15))))
@@ -1292,7 +1292,7 @@ def api_start():
 
     _stop_pipeline()
 
-    # 检测器 (emit_thresh 放行弱框给 tracker)
+    # Detector (emit_thresh allows weak boxes to tracker)
     global _detector_loaded
     if (state.detector is not None and _detector_loaded
             and state.detector._det_thresh == det_thresh
@@ -1310,7 +1310,7 @@ def api_start():
         state.detector = det
         _detector_loaded = True
 
-    # Tracker (四阈值分离)
+    # Tracker (four-threshold separation)
     cfg = BoTSORTConfig(
         detector_emit_min_det=detector_emit_min_det,
         track_new_high_thres=track_new_high_thres,
@@ -1324,12 +1324,12 @@ def api_start():
     state.det_every_n = max(1, det_every_n)
     state.align_enabled = align_enabled
 
-    # Cooldown 配置
+    # Cooldown configuration
     state.embed_cooldown_ms = embed_cooldown_ms
     state.max_embed_per_frame = max_embed_per_frame
     state.max_embed_per_track = max_embed_per_track
 
-    # Credit Gate 配置
+    # Credit Gate configuration
     state.credit_gate_cfg = CreditGateConfig(
         enabled=credit_enabled,
         credit_increment=credit_increment,
@@ -1338,7 +1338,7 @@ def api_start():
         credit_max=credit_max,
     )
 
-    # Module 5 配置 (三态身份判定 + 候选池)
+    # Module 5 configuration (tri-state identity judgment + candidate pool)
     state.m5_cfg = Module5Config(
         enabled=m5_enabled,
         known_threshold=m5_known_threshold,
@@ -1346,7 +1346,7 @@ def api_start():
         margin_threshold=m5_margin_threshold,
     )
 
-    # Alignment 组件
+    # Alignment components
     state.aligner = FaceAligner(output_size=(112, 112))
     state.qgate = QualityGate(QualityConfig(
         min_det_score=min_quality_det,
@@ -1367,10 +1367,10 @@ def api_start():
     # Embedding
     warnings = []
     if embed_enabled and not align_enabled:
-        warnings.append("embed_enabled=True 但 align_enabled=False，人员匹配需要对齐数据")
+        warnings.append("embed_enabled=True but align_enabled=False, person matching requires alignment data")
 
     if embed_enabled and not EMBEDDING_AVAILABLE:
-        warnings.append("Embedding 模块不可用")
+        warnings.append("Embedding module unavailable")
         embed_enabled = False
 
     state.embed_enabled = embed_enabled
@@ -1386,7 +1386,7 @@ def api_start():
             state.embedder = ArcFaceEmbedder(model_path=arcface_model)
         except Exception:
             logger.exception("ArcFace model load failed")
-            return jsonify({"ok": False, "error": "ArcFace 模型加载失败"}), 500
+            return jsonify({"ok": False, "error": "ArcFace model load failed"}), 500
 
         try:
             state.template_mgr = TrackTemplateManager(
@@ -1397,7 +1397,7 @@ def api_start():
             ).open()
         except Exception:
             logger.exception("Template manager init failed")
-            return jsonify({"ok": False, "error": "模板管理器初始化失败"}), 500
+            return jsonify({"ok": False, "error": "Template manager init failed"}), 500
 
         try:
             state.person_registry = PersonRegistry(
@@ -1407,7 +1407,7 @@ def api_start():
             ).open()
         except Exception:
             logger.exception("Person registry init failed")
-            return jsonify({"ok": False, "error": "人员注册表初始化失败"}), 500
+            return jsonify({"ok": False, "error": "Person registry init failed"}), 500
 
         try:
             state.emb_logger = EmbeddingLogger(
@@ -1416,21 +1416,21 @@ def api_start():
             ).open()
         except Exception:
             logger.exception("Embedding logger init failed")
-            return jsonify({"ok": False, "error": "Embedding 日志初始化失败"}), 500
+            return jsonify({"ok": False, "error": "Embedding logger init failed"}), 500
     else:
         state.embedder = None
         state.template_mgr = None
         state.person_registry = None
         state.emb_logger = None
 
-    # Module 5 初始化 (三态身份判定 + 候选池)
+    # Module 5 initialization (tri-state identity judgment + candidate pool)
     if m5_enabled and MODULE5_AVAILABLE and embed_enabled:
         try:
             state.registered_db = RegisteredPersonDB(db_dir="output/registered_db")
             state.registered_db.load()
             logger.info(f"[M6] RegisteredDB initialized, loaded {state.registered_db.count()} identities")
 
-            # 三态判定器
+            # Tri-state judge
             state.identity_judge = IdentityJudge(
                 registered_db=state.registered_db,
                 config=IdentityConfig(
@@ -1441,9 +1441,9 @@ def api_start():
                 log_path="output/person_states.jsonl",
             ).open()
 
-            # 候选池
+            # Candidate pool
             state.candidate_pool = FaceCandidatePool(
-                session_id=None,  # 自动生成
+                session_id=None,  # Auto-generated
                 source_id=data.get("path", f"camera:{data.get('device', 0)}"),
                 config=CandidateConfig(
                     min_samples_to_enter=3,
@@ -1453,9 +1453,9 @@ def api_start():
                 summaries_log_path="output/candidate_summaries.jsonl",
             ).open()
 
-            logger.info("[Module 5] 三态判定 + 候选池已启用")
+            logger.info("[Module 5] Tri-state judgment + candidate pool enabled")
         except Exception as e:
-            logger.info(f"[Module 5] 初始化失败: {e}")
+            logger.info(f"[Module 5] Init failed: {e}")
             state.identity_judge = None
             state.candidate_pool = None
     else:
@@ -1480,9 +1480,9 @@ def api_start():
                 return jsonify({"ok": False, "error": "path is required"}), 400
             video_path = Path(path).resolve()
             if not any(video_path.is_relative_to(d) for d in ALLOWED_VIDEO_DIRS):
-                return jsonify({"ok": False, "error": "视频路径不在允许的目录中"}), 403
+                return jsonify({"ok": False, "error": "Video path not in allowed directories"}), 403
             if not video_path.exists():
-                return jsonify({"ok": False, "error": "文件不存在"}), 404
+                return jsonify({"ok": False, "error": "File not found"}), 404
             src = VideoSource(path=str(video_path), realtime=realtime)
             src.open()
             state.source = src
@@ -1508,7 +1508,7 @@ def api_start():
                 state.mouth_worker = None
         else:
             if speaking_enabled and not SPEAKING_AVAILABLE:
-                warnings.append("Speaking 模块不可用 (mediapipe 未安装)")
+                warnings.append("Speaking module unavailable (mediapipe not installed)")
             state.mouth_worker = None
 
         result = {
@@ -1525,7 +1525,7 @@ def api_start():
         return jsonify(result)
     except Exception:
         logger.exception("api_start failed")
-        return jsonify({"ok": False, "error": "启动失败，请检查服务端日志"}), 500
+        return jsonify({"ok": False, "error": "Start failed, check server logs"}), 500
 
 
 @app.route("/api/stop", methods=["POST"])
@@ -1587,9 +1587,9 @@ def _stop_pipeline():
     if state.candidate_pool:
         try:
             summaries = state.candidate_pool.flush_summaries()
-            logger.info(f"[Module 5] 生成 {len(summaries)} 个候选摘要")
+            logger.info(f"[Module 5] Generated {len(summaries)} candidate summaries")
         except Exception as e:
-            logger.info(f"[Module 5] flush_summaries 失败: {e}")
+            logger.info(f"[Module 5] flush_summaries failed: {e}")
         try:
             state.candidate_pool.close()
         except Exception as e:
@@ -1623,7 +1623,7 @@ def _stop_pipeline():
 @app.route("/api/flush_summaries", methods=["POST"])
 @require_api_key
 def api_flush_summaries():
-    """手动触发生成候选摘要"""
+    """Manually trigger candidate summary generation."""
     if state.candidate_pool is None:
         return jsonify({"ok": False, "error": "candidate_pool not enabled"})
 
@@ -1636,11 +1636,11 @@ def api_flush_summaries():
         })
     except Exception:
         logger.exception("flush_summaries failed")
-        return jsonify({"ok": False, "error": "操作失败"})
+        return jsonify({"ok": False, "error": "Operation failed"})
 
 
 def _count_credit_above_threshold() -> int:
-    """统计当前信用分达标的 track 数量。"""
+    """Count tracks with sufficient credit score."""
     if state.tracker is None:
         return 0
     thresh = state.credit_gate_cfg.credit_threshold
@@ -1650,14 +1650,14 @@ def _count_credit_above_threshold() -> int:
 
 @app.route("/api/persons")
 def api_persons():
-    """返回主循环缓存的 persons 数据（不访问 tracker，零开销）。"""
+    """Return cached persons data from main loop (no tracker access, zero overhead)."""
     return jsonify(getattr(state, '_persons_cache', []))
 
 
 @app.route("/api/person/rename", methods=["POST"])
 @require_api_key
 def api_person_rename():
-    """重命名一个 person，同时持久化到 RegisteredPersonDB。"""
+    """Rename a person and persist to RegisteredPersonDB."""
     data = request.get_json(force=True)
     pid = data.get("person_id")
     name = data.get("name", "").strip()[:50]
@@ -1693,7 +1693,7 @@ def api_stats():
         "timestamp_ms": round(state.timestamp_ms, 1),
         "fps": round(state.fps, 1),
 
-        # 细粒度计时 (Module 4b)
+        # Fine-grained timing (Module 4b)
         "det_ms": round(state.detect_ms, 1),
         "trk_ms": round(state.track_ms, 1),
         "align_ms": round(state.align_ms, 1),
@@ -1723,16 +1723,16 @@ def api_stats():
         "emb_error_count": state.emb_error_count,
         "has_error": bool(state.last_error),
 
-        # 缓存统计 (Module 4b)
+        # Cache statistics (Module 4b)
         "emb_cache_hit": state.emb_cache_hit,
         "emb_cache_miss": state.emb_cache_miss,
         "emb_cooldown_skip": state.emb_cooldown_skip,
 
-        # Credit Gate 统计
+        # Credit Gate statistics
         "credit_gate_enabled": state.credit_gate_cfg.enabled,
         "credit_above_threshold": _count_credit_above_threshold(),
 
-        # Module 5 统计
+        # Module 5 statistics
         "m5_enabled": state.m5_cfg.enabled,
         "m5_known_strong_count": state.m5_known_strong_count,
         "m5_ambiguous_count": state.m5_ambiguous_count,
@@ -1741,14 +1741,14 @@ def api_stats():
         "m5_candidate_count": state.m5_candidate_count,
         "m5_ready_candidate_count": state.m5_ready_candidate_count,
 
-        # 弱检测路径统计
+        # Weak detection path statistics
         **(state.tracker.get_det_stats() if state.tracker else {}),
     })
 
 
 @app.route("/api/embed_log")
 def api_embed_log():
-    """获取 embedding 触发日志"""
+    """Get embedding trigger log."""
     try:
         n = max(1, min(500, int(request.args.get("n", 50))))
     except (ValueError, TypeError):
@@ -1759,21 +1759,21 @@ def api_embed_log():
 
 @app.route("/api/gating_log")
 def api_gating_log():
-    """(保留兼容) Face Gating 已移除, 返回空列表。"""
+    """(Backward compatible) Face Gating removed, returns empty list."""
     return jsonify([])
 
 
 @app.route("/api/track_status/<int:track_id>")
 def api_track_status(track_id: int):
-    """查询指定 track 的详细状态 (用于调试)。
+    """Query detailed status of specified track (for debugging).
 
-    返回该 track 在系统中停留的层级:
-    - tracked: 仅 track 层
-    - sampled: 已进入采样
-    - embedded: 已进入 embedding
-    - assigned: 已分配 person
+    Returns the track's layer level in the system:
+    - tracked: track layer only
+    - sampled: entered sampling
+    - embedded: entered embedding
+    - assigned: assigned to person
     """
-    # 查找 track
+    # Find track
     tracker = state.tracker
     if tracker is None:
         return jsonify({"ok": False, "error": "Tracker not running"})
@@ -1785,7 +1785,7 @@ def api_track_status(track_id: int):
             break
 
     if strack is None:
-        # 检查是否在 lost 或已移除
+        # Check if in lost or removed
         for t in tracker.tracked_stracks + tracker.lost_stracks:
             if t.track_id == track_id:
                 strack = t
@@ -1796,15 +1796,15 @@ def api_track_status(track_id: int):
             "ok": True,
             "track_id": track_id,
             "status": "not_found",
-            "message": "Track 不存在或已被移除",
+            "message": "Track does not exist or has been removed",
         })
 
-    # 获取 embedding 状态
+    # Get embedding state
     ts = state._track_embed_state.get(track_id)
     person_id = state.track_to_person.get(track_id)
     similarity = state.track_similarities.get(track_id)
 
-    # 判断层级
+    # Determine level
     level = "tracked"
     if strack.ever_sampled:
         level = "sampled"

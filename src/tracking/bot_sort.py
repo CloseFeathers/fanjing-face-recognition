@@ -1,13 +1,13 @@
 """
-BoT-SORT Tracker (无 ReID / 无 CMC) —— 纯运动/几何关联。
+BoT-SORT Tracker (without ReID / without CMC) — Pure motion/geometric association.
 
-核心算法: ByteTrack 风格双阶段匹配 + Kalman 滤波
-  1) 高置信检测 vs 活跃轨迹 (IoU 匹配)
-  2) 低置信检测 vs 剩余活跃轨迹 (IoU 匹配)
-  3) 剩余高置信检测 vs 丢失轨迹 (重激活)
-  4) 剩余高置信检测 → 新建轨迹
+Core algorithm: ByteTrack-style two-stage matching + Kalman filtering
+  1) High-confidence detections vs active tracks (IoU matching)
+  2) Low-confidence detections vs remaining active tracks (IoU matching)
+  3) Remaining high-confidence detections vs lost tracks (reactivation)
+  4) Remaining high-confidence detections → create new tracks
 
-轨迹生命周期: tentative → confirmed → lost → removed
+Track lifecycle: tentative → confirmed → lost → removed
 """
 
 from __future__ import annotations
@@ -25,23 +25,23 @@ from .matching import associate
 from .track import FrameTracks, STrack, TrackState
 
 # ======================================================================
-# 配置
+# Configuration
 # ======================================================================
 
 @dataclass
 class BoTSORTConfig:
-    """Tracker 可调参数集 —— 四阈值分离架构。
+    """Tracker configurable parameter set — Four-threshold separation architecture.
 
-    阈值 A~D (从低到高):
-        detector_emit_min_det:  检测器输出到 tracker 的最低分数 (弱框放行)
-        track_update_low_thres: 低分框可更新已有/丢失轨迹的阈值 (= A)
-        track_new_high_thres:   允许创建新 track 的高分阈值 (只高分框可新建)
-        sample_min_det:         进入 alignment/embedding 的采样阈值 (由 server 侧控制)
+    Thresholds A~D (low to high):
+        detector_emit_min_det:  Minimum score for detector output to tracker (weak box pass-through)
+        track_update_low_thres: Threshold for low-score boxes to update existing/lost tracks (= A)
+        track_new_high_thres:   High-score threshold for creating new tracks (only high-score can create)
+        sample_min_det:         Sampling threshold for alignment/embedding (controlled by server side)
 
-    其他:
-        match_iou_threshold: IoU 匹配门槛
-        min_hits:            tentative → confirmed 所需连续命中帧数
-        max_age:             lost 状态最大存活检测帧数
+    Others:
+        match_iou_threshold: IoU matching threshold
+        min_hits:            Consecutive hit frames required for tentative → confirmed
+        max_age:             Maximum detection frames for lost state survival
     """
     detector_emit_min_det: float = 0.15
     track_new_high_thres: float = 0.50
@@ -56,7 +56,7 @@ class BoTSORTConfig:
 # ======================================================================
 
 class BoTSORTTracker:
-    """BoT-SORT 跟踪器 (无 ReID 版本, 四阈值分离)。"""
+    """BoT-SORT tracker (without ReID version, four-threshold separation)."""
 
     def __init__(self, cfg: Optional[BoTSORTConfig] = None) -> None:
         self.cfg = cfg or BoTSORTConfig()
@@ -65,7 +65,7 @@ class BoTSORTTracker:
         self.lost_stracks: List[STrack] = []
         self.frame_count: int = 0
 
-        # 弱检测路径统计
+        # Weak detection path statistics
         self.stats_raw_det_count: int = 0
         self.stats_above_emit: int = 0
         self.stats_above_high: int = 0
@@ -93,7 +93,7 @@ class BoTSORTTracker:
         }
 
     # ==================================================================
-    # 主更新 (检测帧)
+    # Main update (detection frame)
     # ==================================================================
 
     def update(
@@ -102,40 +102,40 @@ class BoTSORTTracker:
         img_w: int,
         img_h: int,
     ) -> List[STrack]:
-        """用新检测更新 tracker，返回当前活跃轨迹。
+        """Update tracker with new detections, return current active tracks.
 
-        四阈值分离:
-          A. detector_emit_min_det: 检测器已按此阈值输出
-          B. track_new_high_thres:  只有高分框可新建轨迹
-          C. track_update_low_thres: 低分框可更新已有/丢失轨迹
-          D. sample_min_det: (server 侧控制, tracker 不涉及)
+        Four-threshold separation:
+          A. detector_emit_min_det: Detector already filtered by this threshold
+          B. track_new_high_thres:  Only high-score boxes can create new tracks
+          C. track_update_low_thres: Low-score boxes can update existing/lost tracks
+          D. sample_min_det: (Server-side controlled, tracker not involved)
         """
         self.frame_count += 1
         cfg = self.cfg
 
-        # ---- 统计: 原始检测数 ----
+        # ---- Statistics: raw detection count ----
         self.stats_raw_det_count += len(detections)
 
-        # ---- 0. 按 emit 阈值过滤 (正常情况 detector 已过滤, 这是安全兜底) ----
+        # ---- 0. Filter by emit threshold (normally detector already filtered, this is safety fallback) ----
         dets = [d for d in detections if d.score >= cfg.detector_emit_min_det]
         self.stats_above_emit += len(dets)
 
-        # ---- 0.5 清理 REMOVED 的轨迹 ----
+        # ---- 0.5 Clean up REMOVED tracks ----
         self.tracked_stracks = [t for t in self.tracked_stracks if t.state != TrackState.REMOVED]
         self.lost_stracks = [t for t in self.lost_stracks if t.state != TrackState.REMOVED]
 
-        # ---- 1. 预测所有轨迹 ----
+        # ---- 1. Predict all tracks ----
         for t in self.tracked_stracks + self.lost_stracks:
             t.predict(self._kf)
             t.age += 1
 
-        # ---- 2. 按阈值 B 分高低 ----
+        # ---- 2. Split by threshold B into high/low ----
         det_high = [d for d in dets if d.score >= cfg.track_new_high_thres]
         det_low = [d for d in dets if cfg.track_update_low_thres <= d.score < cfg.track_new_high_thres]
         self.stats_above_high += len(det_high)
         self.stats_between_emit_and_high += len(det_low)
 
-        # ---- 3. 第一阶段: 高分检测 vs 活跃轨迹 ----
+        # ---- 3. Stage 1: High-score detections vs active tracks ----
         trk_bboxes_1 = np.array(
             [t.bbox_xyxy_clipped(img_w, img_h) for t in self.tracked_stracks]
         ) if self.tracked_stracks else np.empty((0, 4))
@@ -147,7 +147,7 @@ class BoTSORTTracker:
             trk_bboxes_1, det_bboxes_1, cfg.match_iou_threshold
         )
 
-        # ---- 4. 第二阶段: 低分检测 vs 未匹配活跃轨迹 ----
+        # ---- 4. Stage 2: Low-score detections vs unmatched active tracks ----
         remain_tracked = [self.tracked_stracks[i] for i in u_trk_1]
         trk_bboxes_2 = np.array(
             [t.bbox_xyxy_clipped(img_w, img_h) for t in remain_tracked]
@@ -160,7 +160,7 @@ class BoTSORTTracker:
             trk_bboxes_2, det_bboxes_2, cfg.match_iou_threshold
         )
 
-        # ---- 5. 第三阶段: 未匹配高分检测 vs 丢失轨迹 ----
+        # ---- 5. Stage 3: Unmatched high-score detections vs lost tracks ----
         unmatched_high = [det_high[i] for i in u_det_1]
         lost_bboxes = np.array(
             [t.bbox_xyxy_clipped(img_w, img_h) for t in self.lost_stracks]
@@ -173,7 +173,7 @@ class BoTSORTTracker:
             lost_bboxes, uhd_bboxes, cfg.match_iou_threshold
         )
 
-        # ---- 6. 第四阶段: 未匹配低分检测 vs 仍未恢复的丢失轨迹 ----
+        # ---- 6. Stage 4: Unmatched low-score detections vs still unrecovered lost tracks ----
         remaining_lost = [self.lost_stracks[i] for i in u_lost_after_high]
         unmatched_low = [det_low[i] for i in u_det_low_unmatched]
 
@@ -189,12 +189,12 @@ class BoTSORTTracker:
         )
 
         # ============================================================
-        # 构建新的轨迹池
+        # Build new track pool
         # ============================================================
         new_tracked: List[STrack] = []
         new_lost: List[STrack] = []
 
-        # -- 第一阶段匹配 (高分 → 活跃) --
+        # -- Stage 1 matches (high → active) --
         for (ti, di), iou in zip(matches_1, ious_1):
             trk = self.tracked_stracks[ti]
             d = det_high[di]
@@ -203,7 +203,7 @@ class BoTSORTTracker:
                 trk.state = TrackState.CONFIRMED
             new_tracked.append(trk)
 
-        # -- 第二阶段匹配 (低分 → 活跃: 弱框维持轨迹) --
+        # -- Stage 2 matches (low → active: weak box maintains track) --
         for (rti, di), iou in zip(matches_2, ious_2):
             trk = remain_tracked[rti]
             d = det_low[di]
@@ -211,14 +211,14 @@ class BoTSORTTracker:
             self.stats_weak_used_update += 1
             new_tracked.append(trk)
 
-        # -- 第三阶段匹配 (高分 → 丢失: 正式恢复) --
+        # -- Stage 3 matches (high → lost: official recovery) --
         for (li, di), iou in zip(matches_3, ious_3):
             trk = self.lost_stracks[li]
             d = unmatched_high[di]
             trk.re_activate(self._kf, d.bbox_xyxy, d.score, d.kps5, iou)
             new_tracked.append(trk)
 
-        # -- 第四阶段匹配 (低分 → 丢失: 弱框续命丢失轨迹) --
+        # -- Stage 4 matches (low → lost: weak box extends lost track) --
         for (rli, di), iou in zip(matches_4, ious_4):
             trk = remaining_lost[rli]
             d = unmatched_low[di]
@@ -226,7 +226,7 @@ class BoTSORTTracker:
             self.stats_weak_used_update += 1
             new_lost.append(trk)
 
-        # -- 未匹配的活跃轨迹 → lost / removed --
+        # -- Unmatched active tracks → lost / removed --
         truly_unmatched = [remain_tracked[i] for i in u_trk_2]
         for trk in truly_unmatched:
             trk.mark_missed()
@@ -236,7 +236,7 @@ class BoTSORTTracker:
                 trk.state = TrackState.LOST
                 new_lost.append(trk)
 
-        # -- 未匹配的丢失轨迹 → 继续 lost / removed --
+        # -- Unmatched lost tracks → continue lost / removed --
         for i in u_lost_final:
             trk = remaining_lost[i]
             trk.mark_missed()
@@ -245,7 +245,7 @@ class BoTSORTTracker:
             else:
                 new_lost.append(trk)
 
-        # -- 新建轨迹: 只有高分框可以创建 --
+        # -- Create new tracks: only high-score boxes can create --
         remaining_high = [unmatched_high[i] for i in u_det_3]
         for d in remaining_high:
             if d.score >= cfg.track_new_high_thres:
@@ -253,7 +253,7 @@ class BoTSORTTracker:
                 t.activate(self._kf)
                 new_tracked.append(t)
 
-        # ---- 更新轨迹池 ----
+        # ---- Update track pool ----
         self.tracked_stracks = new_tracked
         self.lost_stracks = new_lost
 
@@ -261,17 +261,17 @@ class BoTSORTTracker:
                 if t.state != TrackState.REMOVED]
 
     # ==================================================================
-    # 仅预测 (非检测帧, 用于 det_every_n > 1)
+    # Predict only (non-detection frame, for det_every_n > 1)
     # ==================================================================
 
     def predict_only(self, img_w: int, img_h: int) -> List[STrack]:
-        """仅 Kalman 预测，不做匹配/状态转换。"""
+        """Kalman predict only, no matching/state transitions."""
         self.frame_count += 1
         for t in self.tracked_stracks + self.lost_stracks:
             t.predict(self._kf)
             t.age += 1
-            # 注意: 不增加 time_since_update (无检测机会)
-            # 清空本帧的检测关联信息
+            # Note: don't increment time_since_update (no detection opportunity)
+            # Clear detection association info for this frame
             t.det_score = None
             t.kps5 = None
             t.match_iou = None
@@ -280,7 +280,7 @@ class BoTSORTTracker:
                 if t.state != TrackState.REMOVED]
 
     # ==================================================================
-    # 完整管线入口
+    # Full pipeline entry
     # ==================================================================
 
     def step(
@@ -289,12 +289,12 @@ class BoTSORTTracker:
         detector,
         do_detect: bool = True,
     ) -> FrameTracks:
-        """一帧完整处理: 检测(可选) + 跟踪。
+        """Full frame processing: detection (optional) + tracking.
 
         Args:
-            frame:     Ingestion 输出帧
-            detector:  SCRFDDetector 实例
-            do_detect: 是否执行检测 (由 det_every_n 控制)
+            frame:     Ingestion output frame
+            detector:  SCRFDDetector instance
+            do_detect: Whether to execute detection (controlled by det_every_n)
         Returns:
             FrameTracks
         """
@@ -315,7 +315,7 @@ class BoTSORTTracker:
             active = self.predict_only(W, H)
         track_ms = (time.perf_counter() - t0) * 1000.0
 
-        # 保存原始 STrack 列表供外部模块 (对齐/采样) 使用
+        # Save raw STrack list for external modules (alignment/sampling)
         self._last_active = list(active)
 
         tracks_out = [t.to_dict(W, H) for t in active]
@@ -335,5 +335,5 @@ class BoTSORTTracker:
 
     @property
     def last_active_stracks(self) -> List[STrack]:
-        """最近一次 step() 产生的原始 STrack 列表。"""
+        """Raw STrack list from most recent step()."""
         return getattr(self, "_last_active", [])

@@ -1,20 +1,20 @@
 """
-SCRFDDetector —— 基于 ONNX Runtime 的 SCRFD 人脸检测器。
+SCRFDDetector — SCRFD face detector based on ONNX Runtime.
 
-无需安装 insightface 包，直接加载 SCRFD ONNX 模型进行推理。
+No need to install insightface package, directly load SCRFD ONNX model for inference.
 
-模型来源：
-    InsightFace 官方模型仓库 (GitHub Releases)
-    默认使用 buffalo_l 包中的 det_10g.onnx (scrfd_10g_bnkps, 10GF, 带 5 点关键点)
-    轻量替代: buffalo_sc 包中的 det_500m.onnx (scrfd_500m_bnkps, 500MF)
+Model source:
+    InsightFace official model repository (GitHub Releases)
+    Default uses det_10g.onnx from buffalo_l package (scrfd_10g_bnkps, 10GF, with 5-point keypoints)
+    Lightweight alternative: det_500m.onnx from buffalo_sc package (scrfd_500m_bnkps, 500MF)
 
-加载方式：
-    使用 onnxruntime.InferenceSession 直接加载 .onnx 文件
-    自动检测模型输出数量来判断是否包含关键点 (9 outputs = kps, 6 = no kps)
+Loading method:
+    Use onnxruntime.InferenceSession to directly load .onnx file
+    Auto-detect model output count to determine if keypoints included (9 outputs = kps, 6 = no kps)
 
-模型下载：
+Model download:
     python scripts/download_model.py
-    模型保存至 models/det_10g.onnx
+    Model saved to models/det_10g.onnx
 """
 
 from __future__ import annotations
@@ -32,7 +32,7 @@ import onnxruntime as ort
 
 logger = logging.getLogger(__name__)
 
-# Windows 终端 UTF-8 保护
+# Windows terminal UTF-8 protection
 if sys.platform == "win32":
     os.environ.setdefault("PYTHONIOENCODING", "utf-8")
     if hasattr(sys.stdout, "reconfigure"):
@@ -46,17 +46,17 @@ from .detection import FaceDetection, FrameDetections
 
 
 class SCRFDDetector:
-    """SCRFD 人脸检测器 (纯 ONNX Runtime 实现)。
+    """SCRFD face detector (pure ONNX Runtime implementation).
 
     Parameters:
-        model_path: ONNX 模型文件路径
-        det_size:   检测输入尺寸 (H, W), 默认 (640, 640)
-        det_thresh: 置信度阈值, 默认 0.5
-        nms_thresh: NMS IoU 阈值, 默认 0.4
-        gpu_id:     GPU 编号, -1 = CPU
+        model_path: ONNX model file path
+        det_size:   Detection input size (H, W), default (640, 640)
+        det_thresh: Confidence threshold, default 0.5
+        nms_thresh: NMS IoU threshold, default 0.4
+        gpu_id:     GPU number, -1 = CPU
     """
 
-    # SCRFD 预处理常量 (与 insightface 官方一致)
+    # SCRFD preprocessing constants (consistent with insightface official)
     INPUT_MEAN = 127.5
     INPUT_STD = 128.0
 
@@ -76,7 +76,7 @@ class SCRFDDetector:
         self._nms_thresh = nms_thresh
         self._gpu_id = gpu_id
 
-        # 运行时状态 (load 后填充)
+        # Runtime state (filled after load)
         self._session: Optional[ort.InferenceSession] = None
         self._input_name: str = ""
         self._fmc: int = 3             # feature map count
@@ -86,15 +86,15 @@ class SCRFDDetector:
         self._anchor_cache: Dict[str, np.ndarray] = {}
 
     # ==================================================================
-    # 生命周期
+    # Lifecycle
     # ==================================================================
 
     def load(self) -> "SCRFDDetector":
-        """加载 ONNX 模型。"""
+        """Load ONNX model."""
         if not self._model_path.exists():
             raise FileNotFoundError(
-                f"找不到模型文件: {self._model_path}\n"
-                f"请先运行: python scripts/download_model.py"
+                f"Model file not found: {self._model_path}\n"
+                f"Please run: python scripts/download_model.py"
             )
 
         providers: List[str] = []
@@ -102,7 +102,7 @@ class SCRFDDetector:
             providers.append("CUDAExecutionProvider")
         providers.append("CPUExecutionProvider")
 
-        logger.info(f"加载模型 {self._model_path} ...")
+        logger.info(f"Loading model {self._model_path} ...")
         det_threads = max((os.cpu_count() or 8) - 2, 4)
         logger.info(f"providers={providers}, det_size={self._det_size}, "
                     f"det_thresh={self._det_thresh}, emit_thresh={self._emit_thresh}, "
@@ -118,7 +118,7 @@ class SCRFDDetector:
         )
         self._input_name = self._session.get_inputs()[0].name
 
-        # 通过输出数量自动判断模型配置
+        # Auto-detect model configuration from output count
         outputs = self._session.get_outputs()
         num_outputs = len(outputs)
         if num_outputs == 9:
@@ -142,42 +142,42 @@ class SCRFDDetector:
             self._num_anchors = 1
             self._use_kps = False
         else:
-            raise ValueError(f"不支持的 SCRFD 模型输出数: {num_outputs}")
+            raise ValueError(f"Unsupported SCRFD model output count: {num_outputs}")
 
-        # 判断输出是否带 batch 维度 (3D → batched, 2D → non-batched)
+        # Check if output has batch dimension (3D → batched, 2D → non-batched)
         self._batched = len(outputs[0].shape) == 3
 
-        kps_str = "有" if self._use_kps else "无"
+        kps_str = "yes" if self._use_kps else "no"
         batch_str = "batched" if self._batched else "non-batched"
-        logger.info(f"模型加载完毕. strides={self._strides}, "
-                    f"anchors={self._num_anchors}, 关键点={kps_str}, {batch_str}")
+        logger.info(f"Model loaded. strides={self._strides}, "
+                    f"anchors={self._num_anchors}, keypoints={kps_str}, {batch_str}")
         return self
 
     # ==================================================================
-    # 检测主入口
+    # Detection main entry
     # ==================================================================
 
     def detect(self, frame: Frame) -> FrameDetections:
-        """对单帧执行人脸检测。
+        """Execute face detection on single frame.
 
         Args:
-            frame: Ingestion 层输出的 Frame (BGR 图像)
+            frame: Frame from Ingestion layer (BGR image)
 
         Returns:
             FrameDetections
         """
         if self._session is None:
-            raise RuntimeError("检测器未加载，请先调用 load()")
+            raise RuntimeError("Detector not loaded, please call load() first")
 
         img = frame.image  # BGR, uint8
         W, H = frame.width, frame.height
 
         t0 = time.perf_counter()
 
-        # 1. 预处理: letterbox resize + normalize
+        # 1. Preprocess: letterbox resize + normalize
         det_img, det_scale = self._preprocess(img)
 
-        # 2. 推理
+        # 2. Inference
         blob = cv2.dnn.blobFromImage(
             det_img,
             1.0 / self.INPUT_STD,
@@ -187,7 +187,7 @@ class SCRFDDetector:
         )
         net_outs = self._session.run(None, {self._input_name: blob})
 
-        # 3. 后处理: 解码 + NMS
+        # 3. Postprocess: decode + NMS
         bboxes, scores, kpss = self._postprocess(
             net_outs, det_img.shape[0], det_img.shape[1]
         )
@@ -195,7 +195,7 @@ class SCRFDDetector:
         t1 = time.perf_counter()
         detect_ms = (t1 - t0) * 1000.0
 
-        # 4. 还原到原图坐标 + 裁剪边界
+        # 4. Map back to original image coordinates + clip boundaries
         faces: list[FaceDetection] = []
         for i in range(len(bboxes)):
             bx = bboxes[i] / det_scale
@@ -236,11 +236,11 @@ class SCRFDDetector:
         )
 
     # ==================================================================
-    # 预处理
+    # Preprocessing
     # ==================================================================
 
     def _preprocess(self, img: np.ndarray) -> Tuple[np.ndarray, float]:
-        """Letterbox resize: 等比缩放 + 右下角填充黑色。
+        """Letterbox resize: proportional scaling + bottom-right black padding.
 
         Returns:
             (det_img, det_scale)  det_scale = new_size / original_size
@@ -266,7 +266,7 @@ class SCRFDDetector:
         return det_img, det_scale
 
     # ==================================================================
-    # 后处理
+    # Postprocessing
     # ==================================================================
 
     def _postprocess(
@@ -275,10 +275,10 @@ class SCRFDDetector:
         input_h: int,
         input_w: int,
     ) -> Tuple[np.ndarray, np.ndarray, Optional[np.ndarray]]:
-        """解码网络输出 → (bboxes, scores, kpss)。
+        """Decode network outputs → (bboxes, scores, kpss).
 
         Returns:
-            bboxes: (N, 4)  x1y1x2y2 in det_img 坐标
+            bboxes: (N, 4)  x1y1x2y2 in det_img coordinates
             scores: (N,)
             kpss:   (N, 5, 2) or None
         """
@@ -289,8 +289,8 @@ class SCRFDDetector:
         fmc = self._fmc
 
         for idx, stride in enumerate(self._strides):
-            # 模型输出排列: [score_s1,...,score_sN, bbox_s1,...,bbox_sN, kps_s1,...,kps_sN]
-            # batched 模型输出 shape=(1, A, C), non-batched 输出 shape=(A, C)
+            # Model output arrangement: [score_s1,...,score_sN, bbox_s1,...,bbox_sN, kps_s1,...,kps_sN]
+            # Batched model output shape=(1, A, C), non-batched output shape=(A, C)
             if self._batched:
                 scores = net_outs[idx][0]                       # (A, 1)
                 bbox_preds = net_outs[idx + fmc][0] * stride    # (A, 4)
@@ -302,7 +302,7 @@ class SCRFDDetector:
             feat_w = input_w // stride
             anchors = self._get_anchor_centers(feat_h, feat_w, stride)
 
-            # 阈值过滤 (用 emit_thresh 放行弱框给 tracker)
+            # Threshold filter (use emit_thresh to pass weak boxes to tracker)
             pos = np.where(scores[:, 0] >= self._emit_thresh)[0]
             if len(pos) == 0:
                 continue
@@ -311,12 +311,12 @@ class SCRFDDetector:
             pos_bbox = bbox_preds[pos]
             pos_anchors = anchors[pos]
 
-            # 解码 bbox: anchor_center ± distance
+            # Decode bbox: anchor_center ± distance
             bboxes = self._distance2bbox(pos_anchors, pos_bbox)
             all_scores.append(pos_scores)
             all_bboxes.append(bboxes)
 
-            # 关键点
+            # Keypoints
             if self._use_kps:
                 if self._batched:
                     kps_preds = net_outs[idx + fmc * 2][0] * stride  # (A, 10)
@@ -345,27 +345,27 @@ class SCRFDDetector:
         return bboxes, scores, kpss
 
     # ==================================================================
-    # 锚点生成 (带缓存)
+    # Anchor generation (with cache)
     # ==================================================================
 
     def _get_anchor_centers(
         self, feat_h: int, feat_w: int, stride: int
     ) -> np.ndarray:
-        """生成特征图网格锚点中心坐标，缓存以避免重复计算。"""
+        """Generate feature map grid anchor centers, cached to avoid recomputation."""
         key = f"{feat_h}_{feat_w}_{stride}"
         if key in self._anchor_cache:
             return self._anchor_cache[key]
 
         # mgrid[:h, :w] → [row_grid, col_grid]
-        # 我们需要 [x, y] 即 [col, row]，所以用 [::-1]
-        # 与 insightface 原版一致: center = grid_index * stride (不加偏移)
+        # We need [x, y] i.e. [col, row], so use [::-1]
+        # Consistent with insightface original: center = grid_index * stride (no offset)
         grid = np.stack(
             np.mgrid[:feat_h, :feat_w][::-1], axis=-1
         ).astype(np.float32)
         centers = (grid * stride).reshape(-1, 2)
 
         if self._num_anchors > 1:
-            # 每个网格位置复制 num_anchors 份
+            # Duplicate each grid position num_anchors times
             centers = np.stack(
                 [centers] * self._num_anchors, axis=1
             ).reshape(-1, 2)
@@ -374,14 +374,14 @@ class SCRFDDetector:
         return centers
 
     # ==================================================================
-    # 解码函数
+    # Decode functions
     # ==================================================================
 
     @staticmethod
     def _distance2bbox(
         points: np.ndarray, distance: np.ndarray
     ) -> np.ndarray:
-        """anchor_center + distance → xyxy bbox。
+        """anchor_center + distance → xyxy bbox.
 
         points:   (N, 2)  [cx, cy]
         distance: (N, 4)  [left, top, right, bottom]
@@ -396,7 +396,7 @@ class SCRFDDetector:
     def _distance2kps(
         points: np.ndarray, distance: np.ndarray
     ) -> np.ndarray:
-        """anchor_center + offset → 关键点坐标。
+        """anchor_center + offset → keypoint coordinates.
 
         points:   (N, 2)  [cx, cy]
         distance: (N, 10) [dx0,dy0, dx1,dy1, ..., dx4,dy4]
@@ -414,8 +414,8 @@ class SCRFDDetector:
     # ==================================================================
 
     def _nms(self, bboxes: np.ndarray, scores: np.ndarray) -> np.ndarray:
-        """Non-Maximum Suppression，使用 OpenCV 实现。"""
-        # cv2.dnn.NMSBoxes 需要 [x, y, w, h] 格式
+        """Non-Maximum Suppression, using OpenCV implementation."""
+        # cv2.dnn.NMSBoxes requires [x, y, w, h] format
         boxes_xywh = []
         for b in bboxes:
             boxes_xywh.append([float(b[0]), float(b[1]),
@@ -432,7 +432,7 @@ class SCRFDDetector:
         return np.array(indices).flatten()
 
     # ==================================================================
-    # 属性
+    # Properties
     # ==================================================================
 
     @property

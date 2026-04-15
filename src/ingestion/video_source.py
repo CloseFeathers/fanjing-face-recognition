@@ -1,13 +1,13 @@
 """
-VideoSource —— 本地视频文件采集源。
+VideoSource — Local video file capture source.
 
-关键设计：
-  - timestamp_ms 直接取自视频容器 (CAP_PROP_POS_MSEC)，
-    同一文件重复运行时时间戳序列完全一致。
-  - 默认不丢帧，按顺序逐帧输出（保证离线可复现）。
-  - 提供 realtime 开关：
-      realtime=False  尽可能快跑完（默认）
-      realtime=True   按视频原始帧率限速播放
+Key design:
+  - timestamp_ms directly from video container (CAP_PROP_POS_MSEC),
+    timestamp sequence is identical when running same file repeatedly.
+  - No frame dropping by default, outputs frames sequentially (ensures offline reproducibility).
+  - Provides realtime switch:
+      realtime=False  Run as fast as possible (default)
+      realtime=True   Rate-limit playback to original video framerate
 """
 
 from __future__ import annotations
@@ -22,11 +22,11 @@ from .frame import Frame
 
 
 class VideoSource:
-    """视频文件帧源。
+    """Video file frame source.
 
     Parameters:
-        path:      视频文件路径
-        realtime:  True = 按视频时间实时播放；False = 尽可能快跑完
+        path:      Video file path
+        realtime:  True = real-time playback at video time; False = run as fast as possible
     """
 
     def __init__(self, path: str, realtime: bool = False) -> None:
@@ -39,23 +39,23 @@ class VideoSource:
         self._video_fps: float = 0.0
         self._total_frames: int = 0
 
-        # ---------- FPS 统计 ----------
+        # ---------- FPS statistics ----------
         self._fps_window_start: float = 0.0
         self._fps_window_count: int = 0
         self._current_fps: float = 0.0
 
-        # ---------- realtime 限速 ----------
+        # ---------- Realtime rate limiting ----------
         self._last_read_wall: float = 0.0
         self._last_video_ts: float = 0.0
 
     # ==================================================================
-    # 生命周期
+    # Lifecycle
     # ==================================================================
 
     def open(self) -> "VideoSource":
         self._cap = cv2.VideoCapture(self._path)
         if not self._cap.isOpened():
-            raise RuntimeError(f"无法打开视频文件: {self._path}")
+            raise RuntimeError(f"Cannot open video file: {self._path}")
         self._video_fps = self._cap.get(cv2.CAP_PROP_FPS) or 30.0
         self._total_frames = int(self._cap.get(cv2.CAP_PROP_FRAME_COUNT))
         self._fps_window_start = time.monotonic()
@@ -75,11 +75,11 @@ class VideoSource:
         self.close()
 
     # ==================================================================
-    # 读帧
+    # Read frame
     # ==================================================================
 
     def read(self) -> Optional[Frame]:
-        """顺序读取下一帧。视频读完返回 None。"""
+        """Read next frame sequentially. Returns None when video ends."""
         if self._cap is None or not self._cap.isOpened():
             return None
 
@@ -87,12 +87,12 @@ class VideoSource:
         if not ret:
             return None
 
-        # 视频容器时间戳（毫秒）—— 保证可复现
+        # Video container timestamp (milliseconds) — ensures reproducibility
         ts_ms: float = self._cap.get(cv2.CAP_PROP_POS_MSEC)
 
-        # realtime 限速
+        # Realtime rate limiting
         if self._realtime and self._frame_id > 0:
-            delta_video = ts_ms - self._last_video_ts          # 视频时间差
+            delta_video = ts_ms - self._last_video_ts          # Video time delta
             delta_wall = (time.monotonic() - self._last_read_wall) * 1000.0
             sleep_ms = delta_video - delta_wall
             if sleep_ms > 1.0:
@@ -109,11 +109,11 @@ class VideoSource:
             source_id=self.source_id,
             width=w,
             height=h,
-            dropped_frames=0,  # 视频文件模式不丢帧
+            dropped_frames=0,  # Video file mode never drops frames
         )
         self._frame_id += 1
 
-        # 更新 FPS
+        # Update FPS
         self._fps_window_count += 1
         now = time.monotonic()
         elapsed = now - self._fps_window_start
@@ -125,7 +125,7 @@ class VideoSource:
         return frame
 
     # ==================================================================
-    # 属性
+    # Properties
     # ==================================================================
 
     @property
@@ -134,7 +134,7 @@ class VideoSource:
 
     @property
     def video_fps(self) -> float:
-        """视频文件自身的帧率。"""
+        """The video file's native framerate."""
         return self._video_fps
 
     @property
@@ -143,7 +143,7 @@ class VideoSource:
 
     @property
     def dropped_frames(self) -> int:
-        return 0  # 视频文件模式永不丢帧
+        return 0  # Video file mode never drops frames
 
     @property
     def is_open(self) -> bool:

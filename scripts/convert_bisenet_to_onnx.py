@@ -1,17 +1,18 @@
 #!/usr/bin/env python3
 """
-将 BiSeNet (face-parsing.PyTorch) 从 PyTorch 格式转换为 ONNX 格式。
+Convert BiSeNet (face-parsing.PyTorch) from PyTorch format to ONNX format.
 
-这个脚本用于项目维护者生成 ONNX 模型，然后上传到 GitHub Releases。
-普通用户应使用 download_bisenet.py 直接下载 ONNX 模型。
+This script is for project maintainers to generate ONNX models and upload
+to GitHub Releases. Regular users should use download_bisenet.py to
+download the ONNX model directly.
 
-依赖:
+Dependencies:
   pip install torch torchvision gdown onnx onnxruntime
 
-用法:
+Usage:
   python scripts/convert_bisenet_to_onnx.py
 
-输出:
+Output:
   models/speaking/resnet18.onnx (~53MB)
 """
 
@@ -23,7 +24,7 @@ from pathlib import Path
 
 import numpy as np
 
-# ========== 配置 ==========
+# ========== Configuration ==========
 OUTPUT_DIR = Path("models/speaking")
 OUTPUT_FILE = "resnet18.onnx"
 PTH_GDRIVE_ID = "154JgKpzCPW82qINcVieuPH3fZ2e0P812"
@@ -53,13 +54,13 @@ def check_dependencies():
         missing.append("onnxruntime")
 
     if missing:
-        print(f"[Error] 缺少依赖: {', '.join(missing)}")
+        print(f"[Error] Missing dependencies: {', '.join(missing)}")
         print(f"        pip install {' '.join(missing)}")
         sys.exit(1)
 
 
 def define_bisenet():
-    """定义与权重匹配的 BiSeNet 网络结构"""
+    """Define BiSeNet network structure matching the weights."""
     import torch
     import torch.nn as nn
     import torch.nn.functional as F
@@ -160,7 +161,7 @@ def define_bisenet():
         def __init__(self, n_classes=19):
             super().__init__()
             self.cp = ContextPath()
-            # 没有 SpatialPath，直接用 feat8 (128 channels from layer2)
+            # No SpatialPath, directly use feat8 (128 channels from layer2)
             self.ffm = FeatureFusionModule(256, 256)  # feat8(128) + feat16_up(128)
             self.conv_out = BiSeNetOutput(256, 256, n_classes)
             self.conv_out16 = BiSeNetOutput(128, 64, n_classes)
@@ -186,18 +187,18 @@ def download_pth():
     if pth_path.exists():
         size_mb = pth_path.stat().st_size / 1048576
         if size_mb > 40:
-            print(f"[Download] 权重已存在: {pth_path} ({size_mb:.1f} MB)")
+            print(f"[Download] Weights already exist: {pth_path} ({size_mb:.1f} MB)")
             return pth_path
 
-    print(f"[Download] 下载 PyTorch 权重...")
+    print(f"[Download] Downloading PyTorch weights...")
     gdown.download(id=PTH_GDRIVE_ID, output=str(pth_path), quiet=False)
 
     if not pth_path.exists():
-        print("[Download] 下载失败!")
+        print("[Download] Download failed!")
         return None
 
     size_mb = pth_path.stat().st_size / 1048576
-    print(f"[Download] 完成: {pth_path} ({size_mb:.1f} MB)")
+    print(f"[Download] Done: {pth_path} ({size_mb:.1f} MB)")
     return pth_path
 
 
@@ -208,16 +209,16 @@ def convert_to_onnx(pth_path: Path) -> Path:
     onnx_path = OUTPUT_DIR / OUTPUT_FILE
     temp_path = OUTPUT_DIR / "temp.onnx"
 
-    print(f"[Convert] 加载模型...")
+    print(f"[Convert] Loading model...")
     BiSeNet = define_bisenet()
     model = BiSeNet(n_classes=19)
 
-    # strict=False 因为 resnet18 的 fc 层不在权重中（BiSeNet 不使用它）
+    # strict=False because resnet18's fc layer is not in weights (BiSeNet doesn't use it)
     state_dict = torch.load(str(pth_path), map_location="cpu")
     model.load_state_dict(state_dict, strict=False)
     model.eval()
 
-    print(f"[Convert] 导出 ONNX...")
+    print(f"[Convert] Exporting to ONNX...")
     dummy_input = torch.randn(1, 3, 512, 512)
 
     torch.onnx.export(
@@ -234,10 +235,10 @@ def convert_to_onnx(pth_path: Path) -> Path:
         do_constant_folding=True,
     )
 
-    # 新版 PyTorch 可能会分离权重到 .data 文件，合并为单一文件
+    # Newer PyTorch may separate weights to .data file, merge into single file
     data_path = Path(str(temp_path) + ".data")
     if data_path.exists():
-        print(f"[Convert] 合并为单一 ONNX 文件...")
+        print(f"[Convert] Merging into single ONNX file...")
         onnx_model = onnx.load(str(temp_path), load_external_data=True)
         onnx.save_model(onnx_model, str(onnx_path), save_as_external_data=False)
         temp_path.unlink()
@@ -246,7 +247,7 @@ def convert_to_onnx(pth_path: Path) -> Path:
         temp_path.rename(onnx_path)
 
     size_mb = onnx_path.stat().st_size / 1048576
-    print(f"[Convert] 完成: {onnx_path} ({size_mb:.1f} MB)")
+    print(f"[Convert] Done: {onnx_path} ({size_mb:.1f} MB)")
     return onnx_path
 
 
@@ -254,7 +255,7 @@ def verify_onnx(onnx_path: Path):
     import torch
     import onnxruntime as ort
 
-    print(f"[Verify] 对比 PyTorch 和 ONNX 输出...")
+    print(f"[Verify] Comparing PyTorch and ONNX outputs...")
 
     BiSeNet = define_bisenet()
     pth_path = OUTPUT_DIR / "79999_iter.pth"
@@ -270,14 +271,14 @@ def verify_onnx(onnx_path: Path):
     ort_out = sess.run(None, {"input": dummy.numpy()})[0]
 
     diff = np.abs(pt_out - ort_out).max()
-    print(f"[Verify] 最大差异: {diff:.6f}")
-    print(f"[Verify] 输出形状: {ort_out.shape}")
+    print(f"[Verify] Max difference: {diff:.6f}")
+    print(f"[Verify] Output shape: {ort_out.shape}")
 
     if diff < 1e-4:
-        print(f"[Verify] ✓ 验证通过!")
+        print(f"[Verify] ✓ Verification passed!")
         return True
     else:
-        print(f"[Verify] ⚠ 差异较大，但可能仍可用")
+        print(f"[Verify] ⚠ Large difference, but may still be usable")
         return True
 
 
@@ -293,11 +294,11 @@ def main():
     verify_onnx(onnx_path)
 
     print(f"\n{'='*60}")
-    print(f"转换完成!")
-    print(f"ONNX 模型: {onnx_path}")
-    print(f"\n下一步:")
-    print(f"  1. 上传到 GitHub Releases")
-    print(f"  2. 更新 scripts/download_bisenet.py 中的 ONNX_DIRECT_URL")
+    print(f"Conversion complete!")
+    print(f"ONNX model: {onnx_path}")
+    print(f"\nNext steps:")
+    print(f"  1. Upload to GitHub Releases")
+    print(f"  2. Update ONNX_DIRECT_URL in scripts/download_bisenet.py")
     print(f"{'='*60}")
 
 

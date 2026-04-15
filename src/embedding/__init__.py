@@ -10,7 +10,7 @@ from .candidate_pool import (
 )
 from .embedder import ArcFaceEmbedder
 
-# Module 5: 三态身份判定 + 候选池
+# Module 5: Tri-state identity judgment + candidate pool
 from .identity_state import (
     IdentityConfig,
     IdentityDecision,

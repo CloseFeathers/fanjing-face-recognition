@@ -1,5 +1,5 @@
 """
-Track 数据结构 —— STrack (内部轨迹) 与 FrameTracks (帧级输出契约)。
+Track data structures — STrack (internal track) and FrameTracks (frame-level output contract).
 """
 
 from __future__ import annotations
@@ -12,7 +12,7 @@ import numpy as np
 from .kalman_filter import KalmanFilter
 
 # ======================================================================
-# 轨迹状态
+# Track State
 # ======================================================================
 
 class TrackState:
@@ -23,7 +23,7 @@ class TrackState:
 
 
 # ======================================================================
-# bbox 格式转换
+# bbox format conversion
 # ======================================================================
 
 def xyxy_to_cxywh(bbox) -> np.ndarray:
@@ -42,11 +42,11 @@ def cxywh_to_xyxy(cxywh) -> np.ndarray:
 
 
 # ======================================================================
-# STrack —— 单条轨迹 (tracker 内部使用)
+# STrack — Single track (tracker internal use)
 # ======================================================================
 
 class STrack:
-    """单条跟踪轨迹，持有自身的 Kalman 状态。"""
+    """Single tracking trajectory, holds its own Kalman state."""
 
     _next_id: int = 0
 
@@ -73,12 +73,12 @@ class STrack:
         self.time_since_update: int = 0
         self.match_iou: Optional[float] = None
 
-        # ======== 信用积分制 (Credit Gate) ========
+        # ======== Credit Gate (credit score system) ========
         self.face_valid_credit: float = 0.0
         self.ever_sampled: bool = False
         self.linked_person: bool = False
 
-    # --- 生命周期 ---
+    # --- Lifecycle ---
 
     @classmethod
     def from_detection(cls, bbox_xyxy, score, kps5=None) -> "STrack":
@@ -89,7 +89,7 @@ class STrack:
         return t
 
     def activate(self, kf: KalmanFilter) -> None:
-        """首次激活，分配 track_id 并初始化 Kalman 状态。"""
+        """First activation, allocate track_id and initialize Kalman state."""
         self.track_id = self._alloc_id()
         measurement = xyxy_to_cxywh(self._bbox_init)
         self.mean, self.covariance = kf.initiate(measurement)
@@ -99,12 +99,12 @@ class STrack:
         self.time_since_update = 0
 
     def predict(self, kf: KalmanFilter) -> None:
-        """Kalman 预测 (不更新 time_since_update)。"""
+        """Kalman predict (does not update time_since_update)."""
         self.mean, self.covariance = kf.predict(self.mean, self.covariance)
 
     def update(self, kf: KalmanFilter, bbox_xyxy, score,
                kps5=None, iou: Optional[float] = None) -> None:
-        """与检测匹配后的 Kalman 更新。"""
+        """Kalman update after matching with detection."""
         measurement = xyxy_to_cxywh(bbox_xyxy)
         self.mean, self.covariance = kf.update(
             self.mean, self.covariance, measurement
@@ -117,7 +117,7 @@ class STrack:
 
     def re_activate(self, kf: KalmanFilter, bbox_xyxy, score,
                     kps5=None, iou: Optional[float] = None) -> None:
-        """丢失轨迹重新激活（保留原 track_id）。"""
+        """Reactivate lost track (keep original track_id)."""
         measurement = xyxy_to_cxywh(bbox_xyxy)
         self.mean, self.covariance = kf.update(
             self.mean, self.covariance, measurement
@@ -130,13 +130,13 @@ class STrack:
         self.match_iou = iou
 
     def mark_missed(self) -> None:
-        """本帧未匹配到检测 (仅在 detection 帧调用)。"""
+        """No detection matched this frame (only called on detection frames)."""
         self.time_since_update += 1
         self.det_score = None
         self.kps5 = None
         self.match_iou = None
 
-    # --- bbox 属性 ---
+    # --- bbox properties ---
 
     @property
     def bbox_xyxy(self) -> np.ndarray:
@@ -151,7 +151,7 @@ class STrack:
             float(max(0.0, min(b[3], img_h))),
         ]
 
-    # --- 序列化 ---
+    # --- Serialization ---
 
     def to_dict(self, img_w: int, img_h: int) -> Dict[str, Any]:
         d: Dict[str, Any] = {
@@ -170,7 +170,7 @@ class STrack:
 
 
 # ======================================================================
-# FrameTracks —— 帧级输出
+# FrameTracks — Frame-level output
 # ======================================================================
 
 @dataclass(slots=True)

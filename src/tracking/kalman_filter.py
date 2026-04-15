@@ -1,12 +1,12 @@
 """
-8 维 Kalman Filter —— 用于 bounding box 运动估计。
+8-dimensional Kalman Filter — For bounding box motion estimation.
 
-状态向量 x = [cx, cy, w, h, vx, vy, vw, vh]
-观测向量 z = [cx, cy, w, h]
-运动模型: 恒速 (constant velocity)
+State vector x = [cx, cy, w, h, vx, vy, vw, vh]
+Observation vector z = [cx, cy, w, h]
+Motion model: constant velocity
 
-本实现为无状态工具类：mean/covariance 由 STrack 持有，
-KalmanFilter 仅提供 initiate / predict / update 纯函数。
+This implementation is a stateless utility class: mean/covariance held by STrack,
+KalmanFilter only provides initiate / predict / update pure functions.
 """
 
 from __future__ import annotations
@@ -15,7 +15,7 @@ import numpy as np
 
 
 class KalmanFilter:
-    """无状态 Kalman 滤波器，所有 track 共享同一实例。"""
+    """Stateless Kalman filter, shared by all tracks."""
 
     _std_weight_position = 1.0 / 20
     _std_weight_velocity = 1.0 / 160
@@ -24,18 +24,18 @@ class KalmanFilter:
         ndim = 4
         dt = 1.0
 
-        # 状态转移矩阵 F (8x8)
+        # State transition matrix F (8x8)
         self._F = np.eye(2 * ndim, dtype=np.float64)
         for i in range(ndim):
             self._F[i, ndim + i] = dt
 
-        # 观测矩阵 H (4x8)
+        # Observation matrix H (4x8)
         self._H = np.eye(ndim, 2 * ndim, dtype=np.float64)
 
     # ------------------------------------------------------------------
 
     def initiate(self, measurement: np.ndarray):
-        """从首次观测初始化状态。
+        """Initialize state from first observation.
 
         Args:
             measurement: [cx, cy, w, h]
@@ -61,7 +61,7 @@ class KalmanFilter:
         return mean, covariance
 
     def predict(self, mean: np.ndarray, covariance: np.ndarray):
-        """预测下一帧状态。"""
+        """Predict next frame state."""
         h = max(mean[3], 1.0)
         std_pos = self._std_weight_position * h
         std_vel = self._std_weight_velocity * h
@@ -73,14 +73,14 @@ class KalmanFilter:
         mean = self._F @ mean
         covariance = self._F @ covariance @ self._F.T + Q
 
-        # 保证 w, h > 0
+        # Ensure w, h > 0
         mean[2] = max(mean[2], 1.0)
         mean[3] = max(mean[3], 1.0)
         return mean, covariance
 
     def update(self, mean: np.ndarray, covariance: np.ndarray,
                measurement: np.ndarray):
-        """用观测值校正状态。"""
+        """Correct state with observation."""
         h = max(mean[3], 1.0)
         std = self._std_weight_position * h
         R = np.diag([std ** 2] * 4)
@@ -88,7 +88,7 @@ class KalmanFilter:
         projected_mean = self._H @ mean
         projected_cov = self._H @ covariance @ self._H.T + R
 
-        # Kalman 增益
+        # Kalman gain
         K = covariance @ self._H.T @ np.linalg.inv(projected_cov)
 
         innovation = measurement.astype(np.float64) - projected_mean

@@ -1,12 +1,12 @@
 """
-完整嘴部分析测试 — BiSeNet 遮挡 + XGBoost 说话 + Hysteresis 状态机。
+Full mouth analysis test — BiSeNet occlusion + XGBoost speaking + Hysteresis state machine.
 
-三层判断:
-  L1 遮挡: BiSeNet face parsing (每5帧) + yaw > 60 自遮挡
-  L2 说话: XGBoost (blendshape 滑窗特征, 无 VSDLM)
-  L3 防抖: Hysteresis 状态机
+Three-layer judgment:
+  L1 Occlusion: BiSeNet face parsing (every 5 frames) + yaw > 60 self-occlusion
+  L2 Speaking: XGBoost (blendshape sliding window features, no VSDLM)
+  L3 Debounce: Hysteresis state machine
 
-按 q 退出
+Press q to quit
 """
 
 import os

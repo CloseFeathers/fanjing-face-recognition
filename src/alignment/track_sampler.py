@@ -1,14 +1,14 @@
 """
-Track Sampler —— 为每条 track 维护高质量人脸样本缓存。
+Track Sampler — Maintains high-quality face sample cache for each track.
 
-策略: best-K
-  - 每条 track 最多保留 max_samples 张人脸
-  - 新样本如果质量 > 缓存中最差样本, 替换之
-  - 定期/按需可查询某 track 的最佳样本 (embedding 用)
+Strategy: best-K
+  - Each track keeps at most max_samples faces
+  - If new sample quality > worst cached sample, replace it
+  - Periodically/on-demand query for track's best sample (for embedding)
 
-同时负责:
-  - 将对齐后的人脸图写入磁盘 output/faces/track_{id}/
-  - 将采样记录写入 JSONL 日志 output/track_faces.jsonl
+Also responsible for:
+  - Writing aligned face images to disk output/faces/track_{id}/
+  - Writing sample records to JSONL log output/track_faces.jsonl
 """
 
 from __future__ import annotations
@@ -26,7 +26,7 @@ from .quality import QualityResult
 
 @dataclass
 class SampleInfo:
-    """一条采样记录。"""
+    """A single sample record."""
     track_id: int
     frame_id: int
     timestamp_ms: float
@@ -35,7 +35,7 @@ class SampleInfo:
 
 
 class TrackSampler:
-    """Per-track 人脸样本管理器。"""
+    """Per-track face sample manager."""
 
     def __init__(
         self,
@@ -51,12 +51,12 @@ class TrackSampler:
         self._log_path = Path(log_path)
         self._log_fp = None
 
-        # 统计
+        # Statistics
         self.total_evaluated = 0
         self.total_passed = 0
         self.total_saved = 0
 
-    # --- 生命周期 ---
+    # --- Lifecycle ---
 
     def open(self) -> "TrackSampler":
         self._log_path.parent.mkdir(parents=True, exist_ok=True)
@@ -74,7 +74,7 @@ class TrackSampler:
     def __exit__(self, *exc):
         self.close()
 
-    # --- 核心 ---
+    # --- Core ---
 
     def try_add(
         self,
@@ -84,10 +84,10 @@ class TrackSampler:
         aligned_face: Optional[np.ndarray],
         quality: QualityResult,
     ) -> Optional[SampleInfo]:
-        """尝试为 track 添加一个样本。
+        """Try to add a sample for track.
 
         Returns:
-            SampleInfo 如果成功采样, 否则 None
+            SampleInfo if successfully sampled, otherwise None
         """
         self.total_evaluated += 1
 
@@ -106,7 +106,7 @@ class TrackSampler:
 
         self.total_passed += 1
 
-        # 写入磁盘
+        # Write to disk
         track_dir = self.output_dir / f"track_{track_id}"
         track_dir.mkdir(parents=True, exist_ok=True)
         save_path = track_dir / f"frame_{frame_id}.jpg"
@@ -120,7 +120,7 @@ class TrackSampler:
             save_path=str(save_path),
         )
 
-        # best-K 缓存
+        # best-K cache
         samples = self._samples.setdefault(track_id, [])
         if len(samples) < self.max_samples:
             samples.append(info)
@@ -135,14 +135,14 @@ class TrackSampler:
                     old_path.unlink(missing_ok=True)
                 samples[worst_idx] = info
             else:
-                # 新样本质量不够好, 删除刚保存的文件
+                # New sample quality not good enough, delete just-saved file
                 save_path.unlink(missing_ok=True)
 
         log_entry["save_path"] = str(save_path)
         self._write_log(log_entry)
         return info
 
-    # --- 查询 ---
+    # --- Query ---
 
     def get_samples(self, track_id: int) -> List[SampleInfo]:
         return self._samples.get(track_id, [])
@@ -157,10 +157,10 @@ class TrackSampler:
         return dict(self._samples)
 
     def remove_track(self, track_id: int) -> None:
-        """清理已移除 track 的样本 (可选, 用于释放磁盘)。"""
+        """Clean up samples for removed track (optional, to free disk space)."""
         self._samples.pop(track_id, None)
 
-    # --- 内部 ---
+    # --- Internal ---
 
     def _write_log(self, entry: dict) -> None:
         if self._log_fp:

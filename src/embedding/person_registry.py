@@ -3,25 +3,25 @@
 """
 Session-level Person Registry
 
-功能:
-1. 管理会话内的 person 身份
-2. 接收新的 track template，决定匹配已有 person 还是创建新 person
-3. 支持 margin 条件: top1_similarity - top2_similarity > margin
+Features:
+1. Manage person identities within a session
+2. Receive new track templates, decide to match existing person or create new person
+3. Support margin condition: top1_similarity - top2_similarity > margin
 
-匹配逻辑:
-1. 计算新 template 与所有 person templates 的相似度
-2. 如果 top1_similarity > threshold 且 margin 条件满足:
-   - 绑定到 top1 person
-   - 更新 person template (可选: 滑动平均)
-3. 否则创建新 person
+Matching logic:
+1. Calculate similarity between new template and all person templates
+2. If top1_similarity > threshold and margin condition is satisfied:
+   - Bind to top1 person
+   - Update person template (optional: sliding average)
+3. Otherwise create new person
 
-阈值说明:
-- similarity_threshold: 0.4 (默认, 余弦相似度)
-  - ArcFace 的典型阈值在 0.3-0.5 之间
-  - 同一人相似度通常 > 0.5
-  - 不同人相似度通常 < 0.3
-- margin_threshold: 0.1 (默认)
-  - 确保 top1 明显优于 top2
+Threshold explanation:
+- similarity_threshold: 0.4 (default, cosine similarity)
+  - Typical ArcFace threshold is between 0.3-0.5
+  - Same person similarity is usually > 0.5
+  - Different person similarity is usually < 0.3
+- margin_threshold: 0.1 (default)
+  - Ensure top1 is clearly better than top2
 """
 
 from __future__ import annotations
@@ -39,18 +39,18 @@ from .track_template import TrackTemplate
 
 @dataclass
 class PersonTemplate:
-    """Person 的聚合 template"""
+    """Aggregated template for a Person."""
 
     person_id: int
-    template: np.ndarray  # [512] 归一化向量
-    track_ids: List[int]  # 关联的 track_id 列表
+    template: np.ndarray  # [512] normalized vector
+    track_ids: List[int]  # Associated track_id list
     sample_count: int
     first_seen_frame: int
     last_seen_frame: int
     created_at: str = field(default_factory=lambda: datetime.now().isoformat())
 
     def to_dict(self) -> Dict:
-        """转换为可序列化的字典"""
+        """Convert to serializable dictionary."""
         return {
             "person_id": self.person_id,
             "track_ids": self.track_ids,
@@ -63,7 +63,7 @@ class PersonTemplate:
 
 @dataclass
 class PersonAssignment:
-    """Track 到 Person 的分配结果"""
+    """Track to Person assignment result."""
 
     track_id: int
     person_id: int
@@ -77,7 +77,7 @@ class PersonAssignment:
     timestamp: str = field(default_factory=lambda: datetime.now().isoformat())
 
     def to_dict(self) -> Dict:
-        """转换为可序列化的字典"""
+        """Convert to serializable dictionary."""
         return {
             "track_id": self.track_id,
             "person_id": self.person_id,
@@ -100,7 +100,7 @@ class PersonRegistry:
     """
     Session-level Person Registry
 
-    管理会话内的 person 身份，实现 track 到 person 的匹配
+    Manage person identities within a session, implement track to person matching
     """
 
     def __init__(
@@ -112,14 +112,14 @@ class PersonRegistry:
         log_path: Optional[str] = "output/person_assignments.jsonl",
     ):
         """
-        初始化 Person Registry
+        Initialize Person Registry
 
         Args:
-            similarity_threshold: 匹配阈值 (余弦相似度)
-            margin_threshold: margin 阈值 (top1 - top2 > margin)
-            update_template: 是否在匹配后更新 person template
-            update_weight: 更新权重 (new = old * (1-w) + track * w)
-            log_path: 分配日志路径
+            similarity_threshold: Matching threshold (cosine similarity)
+            margin_threshold: Margin threshold (top1 - top2 > margin)
+            update_template: Whether to update person template after matching
+            update_weight: Update weight (new = old * (1-w) + track * w)
+            log_path: Assignment log path
         """
         self.similarity_threshold = similarity_threshold
         self.margin_threshold = margin_threshold
@@ -130,49 +130,49 @@ class PersonRegistry:
         # person_id -> PersonTemplate
         self._persons: Dict[int, PersonTemplate] = {}
 
-        # track_id -> person_id (映射表)
+        # track_id -> person_id (mapping table)
         self._track_to_person: Dict[int, int] = {}
 
-        # 下一个 person_id
+        # Next person_id
         self._next_person_id: int = 1
 
-        # 日志文件
+        # Log file
         self._log_file = None
 
     def open(self) -> "PersonRegistry":
-        """打开日志文件"""
+        """Open log file."""
         if self.log_path:
             os.makedirs(os.path.dirname(self.log_path), exist_ok=True)
             self._log_file = open(self.log_path, "a", encoding="utf-8")
         return self
 
     def close(self) -> None:
-        """关闭日志文件"""
+        """Close log file."""
         if self._log_file:
             self._log_file.close()
             self._log_file = None
 
     def assign(self, track_template: TrackTemplate) -> PersonAssignment:
         """
-        将 track template 分配给 person
+        Assign track template to a person
 
         Args:
-            track_template: Track 的聚合 template
+            track_template: Track's aggregated template
 
         Returns:
-            PersonAssignment 分配结果
+            PersonAssignment assignment result
         """
         track_id = track_template.track_id
         track_vec = track_template.template
 
-        # 如果已经分配过，返回现有分配
+        # If already assigned, return existing assignment
         if track_id in self._track_to_person:
             person_id = self._track_to_person[track_id]
             return PersonAssignment(
                 track_id=track_id,
                 person_id=person_id,
                 is_new_person=False,
-                top1_similarity=-1.0,  # 已分配,未重新计算
+                top1_similarity=-1.0,  # Already assigned, not recalculated
                 top2_similarity=None,
                 margin=None,
                 threshold=self.similarity_threshold,
@@ -180,54 +180,54 @@ class PersonRegistry:
                 decision="already_assigned",
             )
 
-        # 计算与所有 person 的相似度
+        # Calculate similarity with all persons
         similarities = []
         for pid, person in self._persons.items():
             sim = float(np.dot(track_vec, person.template))
             similarities.append((pid, sim))
 
-        # 按相似度降序排序
+        # Sort by similarity descending
         similarities.sort(key=lambda x: x[1], reverse=True)
 
-        # 获取 top1 和 top2
+        # Get top1 and top2
         top1_pid, top1_sim = similarities[0] if similarities else (None, -1.0)
         top2_sim = similarities[1][1] if len(similarities) > 1 else None
         margin = (top1_sim - top2_sim) if top2_sim is not None else None
 
-        # 决策逻辑
+        # Decision logic
         if top1_sim >= self.similarity_threshold:
             if margin is None or margin >= self.margin_threshold:
-                # 匹配成功
+                # Match successful
                 person_id = top1_pid
                 is_new = False
                 decision = "matched"
 
-                # 更新 person template
+                # Update person template
                 if self.update_template:
                     self._update_person_template(person_id, track_template)
 
-                # 添加 track 到 person 的关联
+                # Add track to person association
                 self._persons[person_id].track_ids.append(track_id)
                 self._persons[person_id].last_seen_frame = track_template.last_frame_id
             else:
-                # margin 不足，创建新 person
+                # Insufficient margin, create new person
                 person_id = self._create_person(track_template)
                 is_new = True
                 decision = "margin_fail"
         else:
-            # 相似度不足，创建新 person
+            # Insufficient similarity, create new person
             person_id = self._create_person(track_template)
             is_new = True
             decision = "new_person"
 
-        # 记录映射
+        # Record mapping
         self._track_to_person[track_id] = person_id
 
-        # 更新 track_template 中的 person 信息
+        # Update person info in track_template
         track_template.person_id = person_id
         track_template.similarity_to_person = top1_sim if not is_new else -1.0
 
-        # 创建分配结果
+        # Create assignment result
         assignment = PersonAssignment(
             track_id=track_id,
             person_id=person_id,
@@ -240,13 +240,13 @@ class PersonRegistry:
             decision=decision,
         )
 
-        # 写入日志
+        # Write log
         self._log_assignment(assignment)
 
         return assignment
 
     def _create_person(self, track_template: TrackTemplate) -> int:
-        """创建新 person"""
+        """Create new person."""
         person_id = self._next_person_id
         self._next_person_id += 1
 
@@ -265,16 +265,16 @@ class PersonRegistry:
     def _update_person_template(
         self, person_id: int, track_template: TrackTemplate
     ) -> None:
-        """更新 person template (滑动平均)"""
+        """Update person template (sliding average)."""
         person = self._persons.get(person_id)
         if person is None:
             return
 
-        # 滑动平均: new = old * (1-w) + track * w
+        # Sliding average: new = old * (1-w) + track * w
         w = self.update_weight
         new_template = person.template * (1 - w) + track_template.template * w
 
-        # L2 归一化
+        # L2 normalize
         norm = np.linalg.norm(new_template)
         if norm > 0:
             new_template = new_template / norm
@@ -283,23 +283,23 @@ class PersonRegistry:
         person.sample_count += track_template.sample_count
 
     def get_person_id(self, track_id: int) -> Optional[int]:
-        """获取 track 对应的 person_id"""
+        """Get person_id corresponding to track."""
         return self._track_to_person.get(track_id)
 
     def get_person(self, person_id: int) -> Optional[PersonTemplate]:
-        """获取 person template"""
+        """Get person template."""
         return self._persons.get(person_id)
 
     def get_all_persons(self) -> Dict[int, PersonTemplate]:
-        """获取所有 persons"""
+        """Get all persons."""
         return self._persons.copy()
 
     def get_person_count(self) -> int:
-        """获取当前 person 数量"""
+        """Get current person count."""
         return len(self._persons)
 
     def _log_assignment(self, assignment: PersonAssignment) -> None:
-        """写入分配日志"""
+        """Write assignment log."""
         if self._log_file:
             self._log_file.write(
                 json.dumps(assignment.to_dict(), ensure_ascii=False) + "\n"
@@ -307,7 +307,7 @@ class PersonRegistry:
             self._log_file.flush()
 
     def reset(self) -> None:
-        """重置会话"""
+        """Reset session."""
         self._persons.clear()
         self._track_to_person.clear()
         self._next_person_id = 1

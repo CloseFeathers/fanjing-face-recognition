@@ -1,6 +1,7 @@
 """
 Module 3: Face Alignment + Quality Gate + Track Template
-对 confirmed track 进行 5 点仿射对齐、质量评估、高质量样本缓存。
+
+Performs 5-point affine alignment, quality assessment, and high-quality sample caching for confirmed tracks.
 """
 
 from .aligner import FaceAligner
