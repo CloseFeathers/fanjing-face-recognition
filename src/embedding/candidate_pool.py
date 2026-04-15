@@ -1,20 +1,20 @@
 """
 Module 5: Session-level FaceCandidatePool + Candidate Summary
 
-功能:
-1. 候选池输入对象是 session-level person (不是 track)
-2. identity_state = UNKNOWN_STRONG 或 AMBIGUOUS 超时均可进入
-3. candidate 绑定到 session_person_id
-4. 为每个 candidate 维护候选样本与摘要对象 (summary)
+Features:
+1. Candidate pool input objects are session-level persons (not tracks)
+2. identity_state = UNKNOWN_STRONG or AMBIGUOUS timeout can enter
+3. Candidate binds to session_person_id
+4. Maintain candidate samples and summary objects for each candidate
 
-Summary Object 包含:
+Summary Object contains:
 - session_id, source_id, candidate_id, source_session_person_id
 - num_samples, num_tracks_covered
 - first_timestamp_ms, last_timestamp_ms
-- centroid/template (落盘)
-- prototype embeddings (最多3个)
+- centroid/template (persisted)
+- prototype embeddings (max 3)
 - internal_consistency, avg_quality_score
-- max_similarity_to_known_person, top1/top2 信息
+- max_similarity_to_known_person, top1/top2 info
 - ready, not_ready_reasons
 """
 
@@ -34,29 +34,29 @@ from .identity_state import IdentityDecision, IdentityState
 
 @dataclass
 class CandidateConfig:
-    """候选池配置"""
-    # 进入候选池的条件
+    """Candidate pool configuration."""
+    # Conditions to enter candidate pool
     min_samples_to_enter: int = 3
     min_tracks_to_enter: int = 1
     min_quality_score_to_enter: float = 0.5
 
-    # register_ready 综合评分
+    # register_ready composite score
     register_threshold: float = 0.6
-    min_samples_absolute: int = 3       # 底线: 低于此值直接 not ready
-    min_consistency_absolute: float = 0.4  # 底线: 低于此值直接 not ready
+    min_samples_absolute: int = 3       # Baseline: below this value directly not ready
+    min_consistency_absolute: float = 0.4  # Baseline: below this value directly not ready
 
-    # Prototype 选择参数
+    # Prototype selection parameters
     outlier_threshold: float = 0.4
     prototype_diff_threshold: float = 0.15
     max_prototypes: int = 3
 
-    # 内部一致性计算
+    # Internal consistency calculation
     max_samples_for_pairwise: int = 20
 
 
 @dataclass
 class EmbeddingSample:
-    """单个 embedding 样本"""
+    """Single embedding sample."""
     embedding: np.ndarray       # [512]
     quality_score: float
     track_id: int
@@ -67,7 +67,7 @@ class EmbeddingSample:
 
 @dataclass
 class CandidateSummary:
-    """候选摘要对象"""
+    """Candidate summary object."""
     session_id: str
     source_id: str
     candidate_id: int
@@ -78,19 +78,19 @@ class CandidateSummary:
     first_timestamp_ms: float
     last_timestamp_ms: float
 
-    # 向量 (不序列化到 JSON，单独落盘)
+    # Vectors (not serialized to JSON, persisted separately)
     centroid: Optional[np.ndarray] = None
     prototypes: List[np.ndarray] = field(default_factory=list)
 
-    # 路径 (序列化到 JSON)
+    # Paths (serialized to JSON)
     centroid_path: Optional[str] = None
     prototype_paths: List[str] = field(default_factory=list)
 
-    # 统计
+    # Statistics
     internal_consistency: float = 0.0
     avg_quality_score: float = 0.0
 
-    # 与已知库的比较
+    # Comparison with known database
     max_similarity_to_known_person: float = -1.0
     top1_known_person_id: Optional[int] = None
     top1_score: float = -1.0
@@ -98,11 +98,11 @@ class CandidateSummary:
     top2_score: Optional[float] = None
     margin: Optional[float] = None
 
-    # Ready 状态
+    # Ready state
     ready: bool = False
     not_ready_reasons: List[str] = field(default_factory=list)
 
-    # Prototype 选择说明
+    # Prototype selection explanation
     prototype_selection_reason: str = ""
 
     created_at: str = field(default_factory=lambda: datetime.now().isoformat())
@@ -138,7 +138,7 @@ class CandidateSummary:
 
 
 class FaceCandidate:
-    """单个候选人对象"""
+    """Single candidate person object."""
 
     def __init__(
         self,
@@ -154,29 +154,29 @@ class FaceCandidate:
         self.source_id = source_id
         self.config = config
 
-        # 样本集合
+        # Sample collection
         self.samples: List[EmbeddingSample] = []
 
-        # 覆盖的 track_ids
+        # Covered track_ids
         self.track_ids: Set[int] = set()
 
-        # 时间戳
+        # Timestamps
         self.first_timestamp_ms: Optional[float] = None
         self.last_timestamp_ms: Optional[float] = None
 
-        # 缓存的统计
+        # Cached statistics
         self._centroid: Optional[np.ndarray] = None
         self._consistency: Optional[float] = None
         self._prototypes: List[np.ndarray] = []
         self._prototype_reason: str = ""
 
-        # 与已知库的比较结果
+        # Comparison results with known database
         self.identity_decision: Optional[IdentityDecision] = None
 
         self.created_at = datetime.now().isoformat()
 
     def add_sample(self, sample: EmbeddingSample):
-        """添加样本"""
+        """Add sample."""
         self.samples.append(sample)
         self.track_ids.add(sample.track_id)
 
@@ -184,13 +184,13 @@ class FaceCandidate:
             self.first_timestamp_ms = sample.timestamp_ms
         self.last_timestamp_ms = sample.timestamp_ms
 
-        # 清除缓存
+        # Clear cache
         self._centroid = None
         self._consistency = None
         self._prototypes = []
 
     def compute_centroid(self) -> Optional[np.ndarray]:
-        """计算 centroid (去除离群点后的平均)"""
+        """Compute centroid (average after removing outliers)."""
         if len(self.samples) == 0:
             return None
 
@@ -200,27 +200,27 @@ class FaceCandidate:
         embeddings = np.array([s.embedding for s in self.samples])
 
         if len(embeddings) <= 2:
-            # 样本太少，直接平均
+            # Too few samples, simple average
             centroid = embeddings.mean(axis=0)
         else:
-            # 先计算初始 centroid
+            # First compute initial centroid
             initial_centroid = embeddings.mean(axis=0)
             initial_centroid = initial_centroid / (np.linalg.norm(initial_centroid) + 1e-8)
 
-            # 计算每个样本到初始 centroid 的相似度
+            # Calculate similarity of each sample to initial centroid
             similarities = np.dot(embeddings, initial_centroid)
 
-            # 去除离群点 (相似度 < threshold)
+            # Remove outliers (similarity < threshold)
             mask = similarities >= self.config.outlier_threshold
             if mask.sum() >= 2:
-                # 有足够的非离群点
+                # Enough non-outliers
                 filtered = embeddings[mask]
                 centroid = filtered.mean(axis=0)
             else:
-                # 离群点太多，使用全部
+                # Too many outliers, use all
                 centroid = initial_centroid
 
-        # L2 归一化
+        # L2 normalize
         norm = np.linalg.norm(centroid)
         if norm > 0:
             centroid = centroid / norm
@@ -230,13 +230,13 @@ class FaceCandidate:
 
     def compute_internal_consistency(self) -> float:
         """
-        计算内部一致性
+        Compute internal consistency
 
-        <= 20 个样本: 两两 cosine similarity 的中位数
-        > 20 个样本: 样本到 centroid 的相似度中位数
+        <= 20 samples: median of pairwise cosine similarity
+        > 20 samples: median of sample similarity to centroid
         """
         if len(self.samples) < 2:
-            return 1.0  # 单样本默认一致
+            return 1.0  # Single sample defaults to consistent
 
         if self._consistency is not None:
             return self._consistency
@@ -245,15 +245,15 @@ class FaceCandidate:
         n = len(embeddings)
 
         if n <= self.config.max_samples_for_pairwise:
-            # 两两相似度
-            # 使用矩阵乘法计算所有两两相似度
+            # Pairwise similarity
+            # Use matrix multiplication to compute all pairwise similarities
             sim_matrix = np.dot(embeddings, embeddings.T)
-            # 取上三角 (不含对角线)
+            # Get upper triangle (excluding diagonal)
             triu_indices = np.triu_indices(n, k=1)
             pairwise_sims = sim_matrix[triu_indices]
             self._consistency = float(np.median(pairwise_sims))
         else:
-            # 退化为到 centroid 的相似度
+            # Degrade to similarity to centroid
             centroid = self.compute_centroid()
             if centroid is None:
                 self._consistency = 0.0
@@ -265,15 +265,15 @@ class FaceCandidate:
 
     def select_prototypes(self) -> Tuple[List[np.ndarray], str]:
         """
-        选择 prototype embeddings
+        Select prototype embeddings
 
-        策略:
-        1. 从高质量样本中去除离群点
-        2. prototype1: 质量高且最接近 centroid
-        3. prototype2: 质量高且与 prototype1 足够不同但非离群
-        4. prototype3: 质量高且与前两个都足够不同但非离群
+        Strategy:
+        1. Remove outliers from high-quality samples
+        2. prototype1: high quality and closest to centroid
+        3. prototype2: high quality and sufficiently different from prototype1 but not outlier
+        4. prototype3: high quality and sufficiently different from both but not outlier
 
-        返回: (prototypes, reason)
+        Returns: (prototypes, reason)
         """
         if len(self.samples) == 0:
             return [], "no_samples"
@@ -286,10 +286,10 @@ class FaceCandidate:
         if centroid is None:
             return [], "centroid_unavailable"
 
-        # 按质量排序
+        # Sort by quality
         sorted_samples = sorted(self.samples, key=lambda s: s.quality_score, reverse=True)
 
-        # 过滤离群点
+        # Filter outliers
         valid_samples = []
         for s in sorted_samples:
             sim_to_centroid = float(np.dot(s.embedding, centroid))
@@ -302,8 +302,8 @@ class FaceCandidate:
         prototypes = []
         reasons = []
 
-        # prototype1: 质量高且最接近 centroid
-        # 在高质量样本中选择最接近 centroid 的
+        # prototype1: high quality and closest to centroid
+        # Select closest to centroid among high-quality samples
         valid_samples_sorted_by_sim = sorted(valid_samples, key=lambda x: x[1], reverse=True)
         p1_sample, p1_sim = valid_samples_sorted_by_sim[0]
         prototypes.append(p1_sample.embedding)
@@ -314,7 +314,7 @@ class FaceCandidate:
             self._prototype_reason = ";".join(reasons) + ";only_1_valid_sample_or_max=1"
             return self._prototypes, self._prototype_reason
 
-        # prototype2: 与 prototype1 足够不同
+        # prototype2: sufficiently different from prototype1
         p2_found = False
         for s, sim_to_centroid in valid_samples_sorted_by_sim[1:]:
             diff_to_p1 = 1.0 - float(np.dot(s.embedding, prototypes[0]))
@@ -335,7 +335,7 @@ class FaceCandidate:
             self._prototype_reason = ";".join(reasons) + ";only_2_valid_or_max=2"
             return self._prototypes, self._prototype_reason
 
-        # prototype3: 与前两个都足够不同
+        # prototype3: sufficiently different from both
         for s, sim_to_centroid in valid_samples_sorted_by_sim:
             if s.embedding is prototypes[0] or s.embedding is prototypes[1]:
                 continue
@@ -353,9 +353,9 @@ class FaceCandidate:
         return self._prototypes, self._prototype_reason
 
     def check_register_ready(self) -> Tuple[bool, float, List[str]]:
-        """综合评分式 register_ready 评估。
+        """Composite scoring register_ready evaluation.
 
-        底线不过直接 not ready; 底线过了按四维度加权评分。
+        Baseline fail directly not ready; baseline pass uses four-dimension weighted score.
 
         Returns:
             (ready, score, not_ready_reasons)
@@ -389,10 +389,10 @@ class FaceCandidate:
         self,
         output_dir: str = "output/candidate_vectors",
     ) -> CandidateSummary:
-        """构建摘要对象并保存向量文件"""
+        """Build summary object and save vector files."""
         os.makedirs(output_dir, exist_ok=True)
 
-        # 计算各项统计
+        # Compute statistics
         centroid = self.compute_centroid()
         consistency = self.compute_internal_consistency()
         prototypes, proto_reason = self.select_prototypes()
@@ -402,20 +402,20 @@ class FaceCandidate:
         if self.samples:
             avg_quality = sum(s.quality_score for s in self.samples) / len(self.samples)
 
-        # 保存 centroid
+        # Save centroid
         centroid_path = None
         if centroid is not None:
             centroid_path = os.path.join(output_dir, f"candidate_{self.candidate_id}_centroid.npy")
             np.save(centroid_path, centroid)
 
-        # 保存 prototypes
+        # Save prototypes
         prototype_paths = []
         for i, proto in enumerate(prototypes):
             proto_path = os.path.join(output_dir, f"candidate_{self.candidate_id}_proto_{i+1}.npy")
             np.save(proto_path, proto)
             prototype_paths.append(proto_path)
 
-        # 从 identity_decision 获取已知库比较结果
+        # Get known database comparison results from identity_decision
         max_sim = -1.0
         top1_known_id = None
         top1_score = -1.0
@@ -463,9 +463,9 @@ class FaceCandidate:
 
 class FaceCandidatePool:
     """
-    Session-level 候选池
+    Session-level candidate pool
 
-    管理 UNKNOWN_STRONG 且证据稳定的 session person
+    Manage UNKNOWN_STRONG session persons with stable evidence
     """
 
     def __init__(
@@ -485,15 +485,15 @@ class FaceCandidatePool:
         # session_person_id -> FaceCandidate
         self._candidates: Dict[int, FaceCandidate] = {}
 
-        # 下一个 candidate_id
+        # Next candidate_id
         self._next_candidate_id: int = 1
 
-        # 日志文件
+        # Log files
         self._candidates_log = None
         self._summaries_log = None
 
     def open(self) -> "FaceCandidatePool":
-        """打开日志文件"""
+        """Open log files."""
         if self.candidates_log_path:
             os.makedirs(os.path.dirname(self.candidates_log_path), exist_ok=True)
             self._candidates_log = open(self.candidates_log_path, "a", encoding="utf-8")
@@ -503,7 +503,7 @@ class FaceCandidatePool:
         return self
 
     def close(self):
-        """关闭日志文件"""
+        """Close log files."""
         if self._candidates_log:
             self._candidates_log.close()
             self._candidates_log = None
@@ -522,28 +522,28 @@ class FaceCandidatePool:
         avg_quality: float,
     ) -> Optional[int]:
         """
-        尝试添加或更新候选
+        Try to add or update candidate
 
         Args:
-            session_person_id: session 内的 person_id
-            identity_state: 当前身份状态
-            identity_decision: 身份判定结果
-            sample: 新的 embedding 样本
-            current_samples_count: 当前 person 的总样本数
-            current_tracks_count: 当前 person 覆盖的 track 数
-            avg_quality: 当前平均质量分
+            session_person_id: person_id within session
+            identity_state: Current identity state
+            identity_decision: Identity decision result
+            sample: New embedding sample
+            current_samples_count: Current person's total sample count
+            current_tracks_count: Current person's covered track count
+            avg_quality: Current average quality score
 
         Returns:
-            candidate_id 如果成功加入/更新候选池，否则 None
+            candidate_id if successfully added/updated to candidate pool, else None
         """
         if identity_state not in (IdentityState.UNKNOWN_STRONG, IdentityState.AMBIGUOUS):
             return None
 
         cfg = self.config
 
-        # 检查是否已有 candidate
+        # Check if candidate already exists
         if session_person_id in self._candidates:
-            # 更新现有 candidate
+            # Update existing candidate
             candidate = self._candidates[session_person_id]
             candidate.add_sample(sample)
             candidate.identity_decision = identity_decision
@@ -557,13 +557,13 @@ class FaceCandidatePool:
 
             return candidate.candidate_id
 
-        # 检查是否满足进入候选池的条件
+        # Check if meets conditions to enter candidate pool
         if (current_samples_count < cfg.min_samples_to_enter or
             current_tracks_count < cfg.min_tracks_to_enter or
             avg_quality < cfg.min_quality_score_to_enter):
             return None
 
-        # 创建新 candidate
+        # Create new candidate
         candidate_id = self._next_candidate_id
         self._next_candidate_id += 1
 
@@ -586,16 +586,16 @@ class FaceCandidatePool:
         return candidate_id
 
     def get_candidate_id(self, session_person_id: int) -> Optional[int]:
-        """获取 session_person 对应的 candidate_id"""
+        """Get candidate_id for session_person."""
         candidate = self._candidates.get(session_person_id)
         return candidate.candidate_id if candidate else None
 
     def get_candidate(self, session_person_id: int) -> Optional[FaceCandidate]:
-        """获取候选对象"""
+        """Get candidate object."""
         return self._candidates.get(session_person_id)
 
     def get_counts(self) -> Dict[str, int]:
-        """获取统计"""
+        """Get statistics."""
         total = len(self._candidates)
         ready = sum(1 for c in self._candidates.values() if c.check_register_ready()[0])
         return {
@@ -605,10 +605,10 @@ class FaceCandidatePool:
 
     def flush_summaries(self) -> List[CandidateSummary]:
         """
-        生成所有 ready=true 的候选摘要并落盘
+        Generate all ready=true candidate summaries and persist
 
         Returns:
-            所有生成的 summary 列表
+            List of all generated summaries
         """
         summaries = []
 
@@ -627,7 +627,7 @@ class FaceCandidatePool:
         return summaries
 
     def _log_candidate_event(self, candidate_id: int, event: str, data: Dict):
-        """记录候选事件"""
+        """Log candidate event."""
         if self._candidates_log:
             entry = {
                 "candidate_id": candidate_id,
@@ -639,7 +639,7 @@ class FaceCandidatePool:
             self._candidates_log.flush()
 
     def reset(self):
-        """重置候选池"""
+        """Reset candidate pool."""
         self._candidates.clear()
         self._next_candidate_id = 1
         self.session_id = str(uuid.uuid4())[:8]
