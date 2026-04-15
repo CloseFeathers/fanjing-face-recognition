@@ -1,12 +1,12 @@
 """
-说话状态检测 (Phase 1) — 基于 SCRFD 5 点关键点的时序分析。
+Speaking state detection (Phase 1) — Temporal analysis based on SCRFD 5-point keypoints.
 
-利用嘴角间距的时序变化推断说话状态:
-- 说话时嘴角有节奏性运动 → motion_var 高
-- 不说话时嘴角稳定 → motion_var 低
-- 检测不可靠时 → occluded
+Infer speaking state from temporal variation of mouth corner distance:
+- Speaking: rhythmic mouth corner movement → high motion_var
+- Not speaking: stable mouth corners → low motion_var
+- Unreliable detection → occluded
 
-输出三态: speaking / not_speaking / occluded
+Output tri-state: speaking / not_speaking / occluded
 """
 
 from __future__ import annotations
@@ -28,7 +28,7 @@ class TrackMouthState:
 
 
 class MouthTracker:
-    """Per-track 嘴部运动时序追踪器。"""
+    """Per-track mouth motion temporal tracker."""
 
     def __init__(
         self,
@@ -47,7 +47,7 @@ class MouthTracker:
 
     def update(self, track_id: int, kps5, det_score: float,
                bbox_xyxy, timestamp_ms: float = 0.0) -> TrackMouthState:
-        """更新 track 的嘴部状态并返回判定结果。"""
+        """Update track's mouth state and return judgment result."""
 
         if kps5 is None or len(kps5) < 5 or det_score is None:
             return TrackMouthState("occluded", 0.0, 0.0, 0, timestamp_ms)

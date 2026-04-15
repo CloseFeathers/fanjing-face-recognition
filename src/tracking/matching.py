@@ -1,8 +1,8 @@
 """
-匹配工具 —— IoU 计算 + 线性分配。
+Matching utilities — IoU computation + linear assignment.
 
-优先使用 scipy.optimize.linear_sum_assignment (匈牙利算法)；
-若 scipy 不可用则退回贪心匹配（对少量人脸足够）。
+Prefer scipy.optimize.linear_sum_assignment (Hungarian algorithm);
+Fall back to greedy matching if scipy unavailable (sufficient for few faces).
 """
 
 from __future__ import annotations
@@ -26,13 +26,13 @@ def iou_batch(
     bboxes_a: np.ndarray,
     bboxes_b: np.ndarray,
 ) -> np.ndarray:
-    """计算两组 bbox 的 IoU 矩阵。
+    """Compute IoU matrix for two sets of bboxes.
 
     Args:
         bboxes_a: (N, 4) xyxy
         bboxes_b: (M, 4) xyxy
     Returns:
-        (N, M) IoU 矩阵
+        (N, M) IoU matrix
     """
     x1 = np.maximum(bboxes_a[:, 0:1], bboxes_b[:, 0].T)
     y1 = np.maximum(bboxes_a[:, 1:2], bboxes_b[:, 1].T)
@@ -49,18 +49,18 @@ def iou_batch(
 
 
 # ======================================================================
-# 线性分配
+# Linear Assignment
 # ======================================================================
 
 def linear_assignment(
     cost_matrix: np.ndarray,
     thresh: float,
 ) -> Tuple[List[Tuple[int, int]], List[int], List[int]]:
-    """求解线性分配问题。
+    """Solve linear assignment problem.
 
     Args:
-        cost_matrix: (N, M) 代价矩阵 (越小越好, 通常 = 1 - IoU)
-        thresh:      最大允许代价 (超过则不匹配)
+        cost_matrix: (N, M) cost matrix (lower is better, usually = 1 - IoU)
+        thresh:      Maximum allowed cost (above this means no match)
     Returns:
         (matches, unmatched_rows, unmatched_cols)
     """
@@ -92,7 +92,7 @@ def linear_assignment(
 def _greedy_assignment(
     cost_matrix: np.ndarray,
 ) -> Tuple[np.ndarray, np.ndarray]:
-    """贪心分配 (scipy 不可用时的后备方案)。"""
+    """Greedy assignment (fallback when scipy unavailable)."""
     rows, cols = [], []
     used_r, used_c = set(), set()
     flat = cost_matrix.flatten()
@@ -113,7 +113,7 @@ def _greedy_assignment(
 
 
 # ======================================================================
-# 关联入口
+# Association Entry
 # ======================================================================
 
 def associate(
@@ -121,7 +121,7 @@ def associate(
     det_bboxes: np.ndarray,
     iou_threshold: float,
 ) -> Tuple[List[Tuple[int, int]], List[int], List[int], List[float]]:
-    """IoU 关联。
+    """IoU association.
 
     Returns:
         (matches, unmatched_tracks, unmatched_dets, match_ious)

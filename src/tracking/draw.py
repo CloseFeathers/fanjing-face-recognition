@@ -1,5 +1,5 @@
 """
-Tracking 可视化 —— 在画面上绘制带 track_id/person_id 着色的跟踪框 + HUD。
+Tracking visualization — Draw tracking boxes with track_id/person_id coloring + HUD on frame.
 """
 
 from __future__ import annotations
@@ -14,15 +14,15 @@ from .track import FrameTracks
 
 
 def _track_color(track_id: int) -> tuple:
-    """基于 track_id 生成稳定的 BGR 颜色。"""
+    """Generate stable BGR color based on track_id."""
     hue = (track_id * 0.618033988749895) % 1.0
     r, g, b = colorsys.hsv_to_rgb(hue, 0.85, 0.95)
     return (int(b * 255), int(g * 255), int(r * 255))
 
 
 def _person_color(person_id: int) -> tuple:
-    """基于 person_id 生成稳定的 BGR 颜色 (不同于 track 颜色)。"""
-    # 使用不同的色相偏移
+    """Generate stable BGR color based on person_id (different from track color)."""
+    # Use different hue offset
     hue = (person_id * 0.381966 + 0.15) % 1.0
     r, g, b = colorsys.hsv_to_rgb(hue, 0.95, 1.0)
     return (int(b * 255), int(g * 255), int(r * 255))
@@ -46,24 +46,24 @@ def draw_tracks(
     show_hud: bool = True,
 ) -> np.ndarray:
     """
-    在画面上叠加跟踪结果和 HUD。
+    Overlay tracking results and HUD on frame.
 
     Args:
-        image: 原始图像
-        ft: FrameTracks 对象
-        pipeline_fps: 管线 FPS
-        dropped_frames: 丢帧数
-        det_faces: 检测人脸数
-        track_to_person: track_id -> person_id 映射
-        show_person: 是否显示 person_id
-        show_similarity: 是否显示相似度分数
-        track_similarities: track_id -> similarity 映射
-        person_count: 当前 person 总数
+        image: Original image
+        ft: FrameTracks object
+        pipeline_fps: Pipeline FPS
+        dropped_frames: Dropped frame count
+        det_faces: Detected face count
+        track_to_person: track_id -> person_id mapping
+        show_person: Whether to show person_id
+        show_similarity: Whether to show similarity score
+        track_similarities: track_id -> similarity mapping
+        person_count: Current person total count
         person_identity_states: session_person_id -> identity_state (Module 5)
         person_to_candidate: session_person_id -> candidate_id (Module 5)
 
     Returns:
-        绘制后的图像
+        Rendered image
     """
     img = image.copy()
 
@@ -81,7 +81,7 @@ def draw_tracks(
         mouth_states = {}
 
     # ------------------------------------------------------------------
-    # 1. 绘制每条轨迹
+    # 1. Draw each track
     # ------------------------------------------------------------------
     for trk in ft.tracks:
         tid = trk["track_id"]
@@ -150,7 +150,7 @@ def draw_tracks(
                         cv2.FONT_HERSHEY_SIMPLEX, 0.55, (0, 0, 0), 1, cv2.LINE_AA)
 
     # ------------------------------------------------------------------
-    # 2. HUD 信息面板 (左上角)
+    # 2. HUD info panel (top-left)
     # ------------------------------------------------------------------
     if show_hud:
         lines = [
@@ -192,7 +192,7 @@ def draw_tracks(
 
 
 def _draw_dashed_rect(img, pt1, pt2, color, thickness, dash_len=8):
-    """绘制虚线矩形 (用于 lost 轨迹)。"""
+    """Draw dashed rectangle (for lost tracks)."""
     x1, y1 = pt1
     x2, y2 = pt2
     for start, end in [((x1, y1), (x2, y1)), ((x2, y1), (x2, y2)),

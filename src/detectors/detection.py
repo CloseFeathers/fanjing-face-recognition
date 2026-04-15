@@ -1,8 +1,8 @@
 """
-Detection 数据结构 —— 人脸检测的统一输出契约。
+Detection data structures — Unified output contract for face detection.
 
-FrameDetections 是一帧的完整检测结果，可直接序列化为 JSONL 的一行。
-FaceDetection 是单张人脸的检测信息。
+FrameDetections is the complete detection result for a frame, directly serializable as one JSONL line.
+FaceDetection is the detection info for a single face.
 """
 
 from __future__ import annotations
@@ -13,15 +13,15 @@ from typing import Any, Dict, List, Optional
 
 @dataclass(slots=True)
 class FaceDetection:
-    """单个人脸检测结果。
+    """Single face detection result.
 
     Attributes:
-        bbox_xyxy: 像素坐标 [x1, y1, x2, y2]，保证 x1<x2, y1<y2
-        score:     检测置信度 (0~1)
-        class_id:  固定为 0 表示 face
-        kps5:      5 个关键点 [[x,y], ...] 顺序为
+        bbox_xyxy: Pixel coordinates [x1, y1, x2, y2], guaranteed x1<x2, y1<y2
+        score:     Detection confidence (0~1)
+        class_id:  Fixed to 0 for face
+        kps5:      5 keypoints [[x,y], ...] in order:
                    left_eye, right_eye, nose, left_mouth_corner, right_mouth_corner
-                   如果模型不输出关键点则为 None
+                   None if model doesn't output keypoints
     """
 
     bbox_xyxy: List[float]
@@ -42,17 +42,17 @@ class FaceDetection:
 
 @dataclass(slots=True)
 class FrameDetections:
-    """一帧的全部人脸检测结果。
+    """All face detection results for one frame.
 
     Attributes:
-        timestamp_ms:   来自 Ingestion Frame 的时间戳
-        frame_id:       帧序号，与 Ingestion 对齐
-        source_id:      数据来源标识
-        width:          帧宽度（像素）
-        height:         帧高度（像素）
-        num_faces:      检测到的人脸数量
-        detect_time_ms: 本帧检测耗时（毫秒）
-        faces:          人脸列表
+        timestamp_ms:   Timestamp from Ingestion Frame
+        frame_id:       Frame sequence number, aligned with Ingestion
+        source_id:      Data source identifier
+        width:          Frame width (pixels)
+        height:         Frame height (pixels)
+        num_faces:      Number of detected faces
+        detect_time_ms: Detection time for this frame (milliseconds)
+        faces:          Face list
     """
 
     timestamp_ms: float
