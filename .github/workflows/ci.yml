@@ -28,7 +28,7 @@ jobs:
       - name: Verify core imports
         run: |
           python -c "from src.ingestion.frame import Frame; print('ingestion OK')"
-          python -c "from src.detectors.detection import Detection; print('detectors OK')"
+          python -c "from src.detectors.detection import FaceDetection; print('detectors OK')"
           python -c "from src.tracking.track import STrack; print('tracking OK')"
           python -c "from src.alignment.aligner import FaceAligner; print('alignment OK')"
           python -c "from src.embedding.embedder import ArcFaceEmbedder; print('embedding OK')"
