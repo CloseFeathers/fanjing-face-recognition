@@ -1,0 +1,51 @@
+# Git
+.git
+.gitignore
+
+# Python
+__pycache__
+*.py[cod]
+*$py.class
+*.so
+.venv
+venv
+env
+.env
+
+# IDE
+.idea
+.vscode
+*.swp
+*.swo
+.cursor
+
+# Testing
+.pytest_cache
+.coverage
+htmlcov
+
+# Build
+dist
+build
+*.egg-info
+
+# Models (mount as volume instead)
+models/*.onnx
+models/*.task
+models/speaking/*.onnx
+models/speaking/*.pth
+
+# Data
+data/
+identities/
+*.pkl
+
+# Docs
+docs/
+*.md
+!README.md
+
+# Misc
+.DS_Store
+Thumbs.db
+*.log
