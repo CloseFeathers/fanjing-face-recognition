@@ -28,6 +28,54 @@ python run_web_v2.py
 #    启动时控制台会打印 API Key，前端页面自动注入无需手动配置
 ```
 
+## Docker 部署
+
+### 使用 Docker Hub 镜像
+
+```bash
+# 拉取镜像
+docker pull flowelement/fanjing-face-recognition:latest
+
+# 创建模型目录并下载模型
+mkdir -p models/speaking
+python scripts/download_model.py
+python scripts/download_arcface.py
+python scripts/download_bisenet.py --convert
+curl -L -o models/face_landmarker.task \
+  "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task"
+
+# 运行容器
+docker run -d \
+  --name fanjing-face \
+  -p 5001:5001 \
+  -v $(pwd)/models:/app/models \
+  -v $(pwd)/identities:/app/identities \
+  flowelement/fanjing-face-recognition:latest
+```
+
+### 使用 Docker Compose
+
+```bash
+# 下载模型后，一键启动
+docker-compose up -d
+
+# 查看日志
+docker-compose logs -f
+
+# 停止服务
+docker-compose down
+```
+
+### 本地构建镜像
+
+```bash
+# 构建镜像（不含模型）
+docker build -t fanjing-face-recognition .
+
+# 构建镜像（含模型，需要较长时间）
+docker build --build-arg DOWNLOAD_MODELS=true -t fanjing-face-recognition .
+```
+
 ## 模型下载
 
 模型文件体积较大，不包含在仓库中。请将以下模型放入 `models/` 目录：

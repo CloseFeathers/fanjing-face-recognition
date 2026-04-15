@@ -1,0 +1,33 @@
+version: '3.8'
+
+services:
+  fanjing-face:
+    image: flowelement/fanjing-face-recognition:latest
+    # Or build locally:
+    # build:
+    #   context: .
+    #   args:
+    #     DOWNLOAD_MODELS: "true"
+    container_name: fanjing-face-recognition
+    ports:
+      - "5001:5001"
+    volumes:
+      # Mount models directory (download models first)
+      - ./models:/app/models
+      # Mount identities for persistence
+      - ./identities:/app/identities
+      # Mount video files (optional)
+      - ./data:/app/data
+    environment:
+      - HOST=0.0.0.0
+      - PORT=5001
+      # - API_KEY=your-custom-api-key
+    devices:
+      # Uncomment to use camera
+      # - /dev/video0:/dev/video0
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5001/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
